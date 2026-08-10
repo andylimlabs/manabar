@@ -49,30 +49,15 @@ body {
   background: rgba(10, 10, 14, 0.55);
 }
 
-#weekfill {
+/* Strip fills are generated from the curated meter registry; z-order is
+   assigned by remaining (lowest in front) in code. */
+.stripfill {
   position: absolute;
   left: 0;
   top: 0;
   bottom: 0;
   width: 0%;
-  background: #6e7bf2;
-  z-index: 2;
   transition: width 0.6s cubic-bezier(0.22, 1, 0.36, 1);
-}
-
-#fablefill {
-  position: absolute;
-  left: 0;
-  top: 0;
-  bottom: 0;
-  width: 0%;
-  background: #d97757;
-  z-index: 1;
-  transition: width 0.6s cubic-bezier(0.22, 1, 0.36, 1);
-}
-
-#bar .front {
-  z-index: 3;
 }
 
 /* 14 segment ticks (Andy's call: 7 days x 2 half-days). Purely aesthetic:
@@ -150,8 +135,7 @@ body {
 
 /* Refill: the fill sweeps back up, a shine crosses it, the bar glows */
 #fill.refilling,
-#weekfill.refilling,
-#fablefill.refilling {
+.stripfill.refilling {
   transition-duration: 1.4s;
   transition-timing-function: cubic-bezier(0.22, 1, 0.36, 1);
 }
@@ -255,13 +239,18 @@ body.noanim * {
 }
 
 /* Single-meter providers (e.g. Codex plans with one window): the weekly
-   strip hides and the mana bar takes the screen edge */
+   strip hides, the mana bar takes the screen edge, and the readout drops
+   to sit just above it */
 body.single-meter #bar {
   display: none;
 }
 
 body.single-meter #sessionbar {
   bottom: 0;
+}
+
+body.single-meter #pill {
+  bottom: calc(var(--session-h) + 5px);
 }
 
 #pill .session {

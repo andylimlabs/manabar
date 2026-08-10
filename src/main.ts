@@ -42,10 +42,22 @@ const bar = document.getElementById("bar")!;
 const sessionbar = document.getElementById("sessionbar")!;
 const ticks = document.getElementById("ticks")!;
 const fill = document.getElementById("fill")!;
-const fablefill = document.getElementById("fablefill")!;
-const weekfill = document.getElementById("weekfill")!;
 const pill = document.getElementById("pill")!;
 const label = document.getElementById("label")!;
+
+// A curated strip meter: the registry in each provider mapper decides what
+// exists, with a chosen label and color. EXPANDABLE, not dynamic: a new
+// API dimension gets rendered only when an entry is added for it.
+type StripMeter = {
+  key: string;
+  label: string;
+  left: number; // percent remaining
+  color: string; // fill color
+  textColor: string; // pill value color
+};
+
+// generated strip fill elements, keyed by meter key
+const stripEls = new Map<string, HTMLElement>();
 
 type State = {
   sessionLeft: number; // true percent remaining (pill shows this)
@@ -53,10 +65,8 @@ type State = {
   pending: { to: number } | null;
   pendingEl: HTMLElement | null;
   sessionReset: Date | null;
-  weekLeft: number;
-  fableLeft: number | null; // scoped per-model weekly, overlaps the session strip
-  fableName: string;
-  singleMeter: boolean;
+  manaKind: "session" | "week";
+  strip: StripMeter[];
   failures: number;
   hasData: boolean;
   setupNeeded: boolean;
@@ -71,10 +81,8 @@ const state: State = {
   pending: null,
   pendingEl: null,
   sessionReset: null,
-  weekLeft: 100,
-  fableLeft: null,
-  fableName: "fable",
-  singleMeter: false,
+  manaKind: "session",
+  strip: [],
   failures: 0,
   hasData: false,
   setupNeeded: false,
@@ -145,9 +153,9 @@ function playRefill(host: HTMLElement, ...fills: HTMLElement[]) {
   setTimeout(() => host.classList.remove("glow"), 1800);
 }
 
-// front edge of the weekly strip = the lower of the two weekly meters
-function weekFront(week: number, fable: number | null): number {
-  return fable === null ? week : Math.min(week, fable);
+// front edge of the strip = the lowest remaining among its meters
+function stripFront(strip: StripMeter[]): number {
+  return strip.length ? Math.min(...strip.map((m) => m.left)) : 100;
 }
 
 function countdown(to: Date | null): string {
@@ -179,42 +187,60 @@ function render() {
   const left = state.sessionLeft;
   const shown = state.displayLeft;
   fill.style.width = `${Math.max(0, Math.min(100, shown))}%`;
-  weekfill.style.width = `${Math.max(0, Math.min(100, state.weekLeft))}%`;
 
-  const fable = state.fableLeft;
-  fablefill.style.width = fable === null ? "0%" : `${Math.max(0, Math.min(100, fable))}%`;
-  // whichever weekly is lower sits in front; the taller one peeks out behind it
-  const fableFront = fable !== null && fable < state.weekLeft;
-  fablefill.classList.toggle("front", fableFront);
-  weekfill.classList.toggle("front", !fableFront);
+  // reconcile generated strip fills against the curated meter list;
+  // lowest remaining renders in front, the taller ones peek out behind
+  const liveKeys = new Set(state.strip.map((m) => m.key));
+  for (const [key, el] of stripEls) {
+    if (!liveKeys.has(key)) {
+      el.remove();
+      stripEls.delete(key);
+    }
+  }
+  const byFront = [...state.strip].sort((a, b) => a.left - b.left);
+  byFront.forEach((m, idx) => {
+    let el = stripEls.get(m.key);
+    if (!el) {
+      el = document.createElement("div");
+      el.className = "stripfill";
+      bar.insertBefore(el, ticks);
+      stripEls.set(m.key, el);
+    }
+    el.style.width = `${Math.max(0, Math.min(100, m.left))}%`;
+    el.style.backgroundColor = m.color;
+    el.style.zIndex = String(Math.max(1, 3 - idx));
+  });
 
   const crit = left <= 10;
   const warn = !crit && left <= 30;
-  // fill color follows what the fill SHOWS (one poll behind); pill follows truth
+  // fill color follows what the fill SHOWS (one poll behind); pill follows
+  // truth. A weekly pool in the mana slot keeps the weekly indigo.
+  const calmColor = state.manaKind === "week" ? COLOR_WEEK : "#5ecbba";
   fill.style.backgroundColor =
-    shown <= 10 ? "#e25a5a" : shown <= 30 ? "#e0a83c" : "#5ecbba";
+    shown <= 10 ? "#e25a5a" : shown <= 30 ? "#e0a83c" : calmColor;
   pill.classList.toggle("crit", crit);
   pill.classList.toggle("warn", warn);
   pill.classList.toggle("stale", state.failures >= MAX_FAILURES);
 
+  const manaStyle =
+    state.manaKind === "week" ? ` style="color:${COLOR_WEEK_TEXT}"` : "";
   const sessionTxt =
     left <= 0
-      ? `<span class="session">mana tapped</span> <span class="dim">· refills in ${countdown(state.sessionReset)}</span>`
-      : `<span class="session">${Math.round(left)}% mana left</span> <span class="dim">· refills in ${countdown(state.sessionReset)}</span>`;
+      ? `<span class="session"${manaStyle}>mana tapped</span> <span class="dim">· refills in ${countdown(state.sessionReset)}</span>`
+      : `<span class="session"${manaStyle}>${Math.round(left)}% mana left</span> <span class="dim">· refills in ${countdown(state.sessionReset)}</span>`;
   const div = `<span class="divider"></span>`;
-  const fableTxt =
-    state.fableLeft === null
-      ? ""
-      : `${div}<span class="swatch sw-fable"></span><span class="dim">${state.fableName}</span> <span class="fable">${Math.round(state.fableLeft)}%</span>`;
-  const weekTxt = state.singleMeter
-    ? ""
-    : `${div}<span class="swatch sw-week"></span><span class="dim">week</span> <span class="week">${Math.round(state.weekLeft)}%</span>`;
+  const stripTxt = state.strip
+    .map(
+      (m) =>
+        `${div}<span class="swatch" style="background:${m.color}"></span><span class="dim">${m.label}</span> <span style="color:${m.textColor};font-weight:600">${Math.round(m.left)}%</span>`,
+    )
+    .join("");
   const refillTxt =
     state.refillAt && Date.now() - state.refillAt < REFILL_NOTE_MS
       ? ` <span class="gold">+${Math.round(state.refillAmt)}% mana refilled</span>`
       : "";
-  label.innerHTML = sessionTxt + fableTxt + weekTxt + refillTxt;
-  document.body.classList.toggle("single-meter", state.singleMeter);
+  label.innerHTML = sessionTxt + stripTxt + refillTxt;
+  document.body.classList.toggle("single-meter", state.strip.length === 0);
 }
 
 let demoRunning = false;
@@ -228,12 +254,21 @@ let lastGoodRaw: string | null = null;
 type Meters = {
   sessionLeft: number;
   sessionReset: Date | null;
-  weekLeft: number;
-  fableLeft: number | null;
-  fableName: string;
-  singleMeter: boolean;
+  // color language encodes the window timescale: a session pool renders
+  // teal, a weekly pool rendered in the mana slot renders weekly indigo
+  manaKind: "session" | "week";
+  strip: StripMeter[];
 };
 
+// Meter colors, curated. Add a color when adding a registry entry.
+const COLOR_WEEK = "#6e7bf2";
+const COLOR_WEEK_TEXT = "#98a2ff";
+const COLOR_SCOPED = "#d97757";
+const COLOR_SCOPED_TEXT = "#e39068";
+
+// The claude meter registry: session plays the mana bar; each entry added
+// to `strip` here is one fill + one pill readout. To support a new limit
+// dimension, add an entry: key, label, color, extraction.
 function mapClaude(usage: Usage, raw: string): Meters {
   const limits = usage.limits ?? [];
   const session = limits.find((l) => l.kind === "session");
@@ -242,7 +277,38 @@ function mapClaude(usage: Usage, raw: string): Meters {
     throw new Error(`no meters in response: ${raw.slice(0, 120)}`);
   }
   const weekAll = weeklies.find((l) => l.kind === "weekly_all");
-  const scoped = weeklies.find((l) => l.kind === "weekly_scoped");
+  const scoped = weeklies.filter((l) => l.kind === "weekly_scoped");
+  const strip: StripMeter[] = [];
+  if (weekAll || usage.seven_day) {
+    strip.push({
+      key: "week",
+      label: "week",
+      left: weekAll
+        ? 100 - weekAll.percent
+        : 100 - (usage.seven_day?.utilization ?? 0),
+      color: COLOR_WEEK,
+      textColor: COLOR_WEEK_TEXT,
+    });
+  }
+  if (scoped[0]) {
+    strip.push({
+      key: "scoped",
+      label: (scoped[0].scope?.model?.display_name ?? "scoped").toLowerCase(),
+      left: 100 - scoped[0].percent,
+      color: COLOR_SCOPED,
+      textColor: COLOR_SCOPED_TEXT,
+    });
+  }
+  // expandable, not dynamic: surface unknowns for a deliberate registry
+  // addition instead of auto-rendering them
+  for (const extra of scoped.slice(1)) {
+    console.warn("manabar: unrendered scoped meter", extra.scope?.model?.display_name);
+  }
+  for (const l of limits) {
+    if (!["session", "weekly_all", "weekly_scoped"].includes(l.kind)) {
+      console.warn("manabar: unknown limit kind", l.kind);
+    }
+  }
   return {
     sessionLeft: session
       ? 100 - session.percent
@@ -252,17 +318,13 @@ function mapClaude(usage: Usage, raw: string): Meters {
       : usage.five_hour?.resets_at
         ? new Date(usage.five_hour.resets_at)
         : null,
-    weekLeft: weekAll
-      ? 100 - weekAll.percent
-      : usage.seven_day
-        ? 100 - usage.seven_day.utilization
-        : 100,
-    fableLeft: scoped ? 100 - scoped.percent : null,
-    fableName: (scoped?.scope?.model?.display_name ?? "fable").toLowerCase(),
-    singleMeter: false,
+    manaKind: "session",
+    strip,
   };
 }
 
+// The codex meter registry: secondary (short window) plays the mana bar
+// when present; primary (weekly) is the strip. One window = no strip.
 function mapCodex(codex: CodexUsage, raw: string): Meters {
   const rl = codex?.rate_limit;
   const primary = rl?.primary_window ?? null;
@@ -270,19 +332,24 @@ function mapCodex(codex: CodexUsage, raw: string): Meters {
   if (!primary && !secondary) {
     throw new Error(`no codex meters in response: ${raw.slice(0, 120)}`);
   }
-  // secondary (short window) plays the mana bar when present; primary
-  // (weekly) is the strip. With only one window, the strip hides.
   const mana = (secondary ?? primary) as CodexWindow;
-  const week = secondary ? primary : null;
   const toDate = (w: CodexWindow | null) =>
     w?.reset_at ? new Date(w.reset_at * 1000) : null;
+  const strip: StripMeter[] = [];
+  if (secondary && primary) {
+    strip.push({
+      key: "week",
+      label: "week",
+      left: 100 - primary.used_percent,
+      color: COLOR_WEEK,
+      textColor: COLOR_WEEK_TEXT,
+    });
+  }
   return {
     sessionLeft: 100 - mana.used_percent,
     sessionReset: toDate(mana),
-    weekLeft: week ? 100 - week.used_percent : 100,
-    fableLeft: null,
-    fableName: "fable",
-    singleMeter: !week,
+    manaKind: secondary ? "session" : "week",
+    strip,
   };
 }
 
@@ -322,15 +389,11 @@ function applyUsage(raw: string) {
   }
   {
     const prevLeft = state.hasData ? state.sessionLeft : null;
-    const prevWeekEdge = state.hasData
-      ? weekFront(state.weekLeft, state.fableLeft)
-      : null;
+    const prevWeekEdge = state.hasData ? stripFront(state.strip) : null;
     state.sessionLeft = m.sessionLeft;
     state.sessionReset = m.sessionReset;
-    state.weekLeft = m.weekLeft;
-    state.fableLeft = m.fableLeft;
-    state.fableName = m.fableName;
-    state.singleMeter = m.singleMeter;
+    state.manaKind = m.manaKind;
+    state.strip = m.strip;
     if (prevLeft !== null) {
       const now = state.sessionLeft;
       if (now > prevLeft + 1) {
@@ -359,14 +422,14 @@ function applyUsage(raw: string) {
     } else {
       state.displayLeft = state.sessionLeft;
     }
-    if (prevWeekEdge !== null) {
-      // ghost/refill on the weekly strip's visible front edge (the binding meter)
-      const edge = weekFront(state.weekLeft, state.fableLeft);
+    if (prevWeekEdge !== null && state.strip.length) {
+      // ghost/refill on the strip's visible front edge (the binding meter)
+      const edge = stripFront(state.strip);
       if (edge < prevWeekEdge - 0.01) {
         spawnSpan(bar, "ghost", edge, prevWeekEdge - edge, GHOST_TTL_MS);
       } else if (edge > prevWeekEdge + 1) {
-        // weekly reset: same fill-up choreography on the weekly strip
-        playRefill(bar, weekfill, fablefill);
+        // weekly reset: same fill-up choreography on the strip
+        playRefill(bar, ...stripEls.values());
         spawnSpan(bar, "refill", prevWeekEdge, edge - prevWeekEdge, REFILL_TTL_MS);
       }
     }
@@ -462,16 +525,15 @@ async function runDemo() {
   const snap = {
     sessionLeft: state.sessionLeft,
     displayLeft: state.displayLeft,
-    weekLeft: state.weekLeft,
-    fableLeft: state.fableLeft,
+    strip: state.strip.map((m) => ({ ...m })),
     refillAt: state.refillAt,
     refillAmt: state.refillAmt,
   };
   clearPending();
   state.sessionLeft = 74;
   state.displayLeft = 74;
-  state.weekLeft = 83;
-  state.fableLeft = 69;
+  const demoLefts = [83, 69];
+  state.strip = state.strip.map((m, i) => ({ ...m, left: demoLefts[i] ?? m.left }));
   render();
   await sleep(800);
   // poll 1: drop detected. Numbers update, ghost marks the span, fill holds.
@@ -504,21 +566,22 @@ async function runDemo() {
   state.displayLeft = 100;
   render();
   await sleep(4600);
-  // weekly reset: same choreography, same settled hold after.
-  const edge = weekFront(state.weekLeft, state.fableLeft);
-  playRefill(bar, weekfill, fablefill);
-  spawnSpan(bar, "refill", edge, 100 - edge, 2000);
-  state.weekLeft = 100;
-  state.fableLeft = 100;
-  render();
-  await sleep(4600);
+  // weekly reset: same choreography, same settled hold after (skipped for
+  // single-meter providers with no strip).
+  if (state.strip.length) {
+    const edge = stripFront(state.strip);
+    playRefill(bar, ...stripEls.values());
+    spawnSpan(bar, "refill", edge, 100 - edge, 2000);
+    state.strip = state.strip.map((m) => ({ ...m, left: 100 }));
+    render();
+    await sleep(4600);
+  }
   // restore reality with animations suppressed.
   document.body.classList.add("noanim");
   document.querySelectorAll(".ghost, .refill, .shine").forEach((el) => el.remove());
   state.sessionLeft = snap.sessionLeft;
   state.displayLeft = snap.displayLeft;
-  state.weekLeft = snap.weekLeft;
-  state.fableLeft = snap.fableLeft;
+  state.strip = snap.strip;
   state.refillAt = snap.refillAt;
   state.refillAmt = snap.refillAmt;
   render();

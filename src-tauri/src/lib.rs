@@ -8,9 +8,6 @@ use tauri::menu::{CheckMenuItem, Menu, MenuItem, PredefinedMenuItem, Submenu};
 use tauri::tray::TrayIconBuilder;
 use tauri::{AppHandle, Emitter, LogicalPosition, LogicalSize, Manager, Monitor, WebviewUrl, WebviewWindowBuilder};
 
-/// Window height in logical points: 8px weekly strip + 4px session bar,
-/// plus headroom for the floating readout pill.
-const BAR_HEIGHT: f64 = 38.0;
 const RECONCILE_SECS: u64 = 15;
 
 /// Show a bar on every display (tray-toggleable, persisted).
@@ -25,6 +22,29 @@ fn hud_mode() -> String {
         "full".into()
     } else {
         m
+    }
+}
+
+/// HUD size preset: "compact" | "standard" | "large" (empty = standard).
+static HUD_SIZE: Mutex<String> = Mutex::new(String::new());
+
+fn hud_size() -> String {
+    let s = HUD_SIZE.lock().unwrap().clone();
+    if s.is_empty() {
+        "standard".into()
+    } else {
+        s
+    }
+}
+
+/// Window height in logical points: weekly strip + session bar heights per
+/// size preset, plus headroom for the floating readout pill. Must track the
+/// CSS size presets in styles.css.
+fn bar_height() -> f64 {
+    match hud_size().as_str() {
+        "compact" => 38.0,
+        "large" => 46.0,
+        _ => 40.0,
     }
 }
 /// Last successful usage payload; lets a late-joining bar catch up instantly
@@ -130,6 +150,11 @@ fn get_hud_mode() -> String {
     hud_mode()
 }
 
+#[tauri::command]
+fn get_hud_size() -> String {
+    hud_size()
+}
+
 fn settings_path(app: &AppHandle) -> Option<std::path::PathBuf> {
     app.path().app_config_dir().ok().map(|d| d.join("settings.json"))
 }
@@ -154,6 +179,11 @@ fn load_settings(app: &AppHandle) {
                     // migrate the pre-HUD-mode setting
                     *HUD_MODE.lock().unwrap() = "minimal".to_string();
                 }
+                if let Some(s) = v["hud_size"].as_str() {
+                    if ["compact", "standard", "large"].contains(&s) {
+                        *HUD_SIZE.lock().unwrap() = s.to_string();
+                    }
+                }
             }
         }
     }
@@ -168,6 +198,7 @@ fn save_settings(app: &AppHandle) {
             "all_displays": ALL_DISPLAYS.load(Ordering::Relaxed),
             "label_position": label_pos(),
             "hud_mode": hud_mode(),
+            "hud_size": hud_size(),
         });
         let _ = std::fs::write(path, v.to_string());
     }
@@ -177,11 +208,9 @@ fn pin_to_monitor(win: &tauri::WebviewWindow, mon: &Monitor) {
     let scale = mon.scale_factor();
     let size = mon.size().to_logical::<f64>(scale);
     let pos = mon.position().to_logical::<f64>(scale);
-    let _ = win.set_size(LogicalSize::new(size.width, BAR_HEIGHT));
-    let _ = win.set_position(LogicalPosition::new(
-        pos.x,
-        pos.y + size.height - BAR_HEIGHT,
-    ));
+    let h = bar_height();
+    let _ = win.set_size(LogicalSize::new(size.width, h));
+    let _ = win.set_position(LogicalPosition::new(pos.x, pos.y + size.height - h));
 }
 
 fn ensure_bar(app: &AppHandle, label: &str, mon: &Monitor) {
@@ -265,7 +294,8 @@ pub fn run() {
             fetch_usage,
             cached_usage,
             get_label_position,
-            get_hud_mode
+            get_hud_mode,
+            get_hud_size
         ])
         .setup(|app| {
             #[cfg(target_os = "macos")]
@@ -347,6 +377,37 @@ pub fn run() {
                 true,
                 &[&lab_left, &lab_center, &lab_right],
             )?;
+            let size = hud_size();
+            let size_compact = CheckMenuItem::with_id(
+                app,
+                "size-compact",
+                "Compact",
+                true,
+                size == "compact",
+                None::<&str>,
+            )?;
+            let size_standard = CheckMenuItem::with_id(
+                app,
+                "size-standard",
+                "Standard",
+                true,
+                size == "standard",
+                None::<&str>,
+            )?;
+            let size_large = CheckMenuItem::with_id(
+                app,
+                "size-large",
+                "Large",
+                true,
+                size == "large",
+                None::<&str>,
+            )?;
+            let sizes = Submenu::with_items(
+                app,
+                "HUD size",
+                true,
+                &[&size_compact, &size_standard, &size_large],
+            )?;
             let quit = MenuItem::with_id(app, "quit", "Quit manabar", true, None::<&str>)?;
             let sep1 = PredefinedMenuItem::separator(app)?;
             let sep2 = PredefinedMenuItem::separator(app)?;
@@ -357,6 +418,7 @@ pub fn run() {
                     &hud_minimal,
                     &hud_hidden,
                     &sep1,
+                    &sizes,
                     &labels,
                     &all_displays,
                     &sep2,
@@ -366,6 +428,11 @@ pub fn run() {
             let all_item = all_displays.clone();
             let lab_items = [lab_left.clone(), lab_center.clone(), lab_right.clone()];
             let hud_items = [hud_full.clone(), hud_minimal.clone(), hud_hidden.clone()];
+            let size_items = [
+                size_compact.clone(),
+                size_standard.clone(),
+                size_large.clone(),
+            ];
             TrayIconBuilder::new()
                 .icon(app.default_window_icon().expect("app icon").clone())
                 .menu(&menu)
@@ -387,6 +454,16 @@ pub fn run() {
                         let _ = all_item.set_checked(on);
                         save_settings(app);
                         reconcile(app);
+                    }
+                    id if id.starts_with("size-") => {
+                        let size = id.trim_start_matches("size-").to_string();
+                        *HUD_SIZE.lock().unwrap() = size.clone();
+                        for item in &size_items {
+                            let _ = item.set_checked(item.id().as_ref() == id);
+                        }
+                        save_settings(app);
+                        reconcile(app);
+                        let _ = app.emit("hud-size", size);
                     }
                     id if id.starts_with("label-") => {
                         let pos = id.trim_start_matches("label-").to_string();

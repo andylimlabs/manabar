@@ -259,3 +259,14 @@ invoke<string>("get_hud_mode")
   .then(setHudMode)
   .catch(() => {});
 listen<string>("hud-mode", (e) => setHudMode(e.payload));
+
+function setHudSize(size: string) {
+  document.body.classList.remove("size-compact", "size-large");
+  if (size === "compact" || size === "large") {
+    document.body.classList.add(`size-${size}`);
+  }
+}
+invoke<string>("get_hud_size")
+  .then(setHudSize)
+  .catch(() => {});
+listen<string>("hud-size", (e) => setHudSize(e.payload));

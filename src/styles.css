@@ -4,6 +4,28 @@
   box-sizing: border-box;
 }
 
+/* HUD size presets (tray: Compact / Standard / Large). Standard is default. */
+:root {
+  --week-h: 8px;
+  --session-h: 6px;
+  --pill-font: 11.5px;
+  --pill-bottom: 17px;
+}
+
+body.size-compact {
+  --week-h: 8px;
+  --session-h: 4px;
+  --pill-font: 11px;
+  --pill-bottom: 15px;
+}
+
+body.size-large {
+  --week-h: 10px;
+  --session-h: 8px;
+  --pill-font: 12.5px;
+  --pill-bottom: 21px;
+}
+
 html,
 body {
   width: 100%;
@@ -23,7 +45,7 @@ body {
   left: 0;
   right: 0;
   bottom: 0;
-  height: 8px;
+  height: var(--week-h);
   background: rgba(10, 10, 14, 0.55);
 }
 
@@ -74,8 +96,8 @@ body {
   position: fixed;
   left: 0;
   right: 0;
-  bottom: 8px;
-  height: 4px;
+  bottom: var(--week-h);
+  height: var(--session-h);
   background: rgba(10, 10, 14, 0.4);
   border-top: 1px solid rgba(255, 255, 255, 0.06);
 }
@@ -130,12 +152,12 @@ body {
 #pill {
   position: fixed;
   right: 12px;
-  bottom: 15px;
+  bottom: var(--pill-bottom);
   background: rgba(14, 14, 18, 0.82);
   border: 1px solid rgba(255, 255, 255, 0.09);
   border-radius: 6px;
   padding: 3px 9px;
-  font-size: 11px;
+  font-size: var(--pill-font);
   line-height: 1.35;
   color: rgba(255, 255, 255, 0.85);
   font-variant-numeric: tabular-nums;

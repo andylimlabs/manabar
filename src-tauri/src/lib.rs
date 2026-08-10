@@ -489,12 +489,15 @@ fn ensure_bar(app: &AppHandle, label: &str, mon: &Monitor) {
         .resizable(false)
         .visible_on_all_workspaces(true)
         .build();
-    if let Ok(win) = built {
-        let _ = win.set_ignore_cursor_events(true);
-        pin_to_monitor(&win, mon);
-        if hud_mode() == "hidden" {
-            let _ = win.hide();
+    match built {
+        Ok(win) => {
+            let _ = win.set_ignore_cursor_events(true);
+            pin_to_monitor(&win, mon);
+            if hud_mode() == "hidden" {
+                let _ = win.hide();
+            }
         }
+        Err(e) => eprintln!("manabar: creating {label} failed: {e}"),
     }
 }
 

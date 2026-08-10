@@ -230,17 +230,24 @@ function render() {
       : left <= 0
         ? `<span class="session">mana tapped</span> <span class="dim">· refills in ${countdown(state.sessionReset)}</span>`
         : `<span class="session">${Math.round(left)}% mana left</span> <span class="dim">· refills in ${countdown(state.sessionReset)}</span>`;
+  // pill grammar: the hairline divider separates timescale GROUPS (session
+  // vs weekly); dots punctuate within a group, ending with the group reset
   const div = `<span class="divider"></span>`;
-  const stripTxt = state.strip
-    .map((m, i) => {
-      const lead = sessionTxt === "" && i === 0 ? "" : div;
-      const reset =
-        sessionTxt === "" && m.reset
-          ? ` <span class="dim">· resets in ${countdown(m.reset)}</span>`
-          : "";
-      return `${lead}<span class="swatch" style="background:${m.color}"></span><span class="dim">${m.label}</span> <span style="color:${m.textColor};font-weight:600">${Math.round(m.left)}%</span>${reset}`;
-    })
-    .join("");
+  let stripTxt = "";
+  if (state.strip.length) {
+    const entries = state.strip.map(
+      (m) =>
+        `<span class="swatch" style="background:${m.color}"></span><span class="dim">${m.label}</span> <span style="color:${m.textColor};font-weight:600">${Math.round(m.left)}%</span>`,
+    );
+    const groupReset = state.strip.find((m) => m.reset)?.reset ?? null;
+    const resetTxt = groupReset
+      ? ` <span class="dim">· resets in ${countdown(groupReset)}</span>`
+      : "";
+    stripTxt =
+      (sessionTxt === "" ? "" : div) +
+      entries.join(`<span class="gap"></span>`) +
+      resetTxt;
+  }
   const refillTxt =
     state.refillAt && Date.now() - state.refillAt < REFILL_NOTE_MS
       ? ` <span class="gold">+${Math.round(state.refillAmt)}% ${left === null ? "week" : "mana"} refilled</span>`
@@ -290,6 +297,7 @@ function mapClaude(usage: Usage, raw: string): Meters {
       left: 100 - scoped[0].percent,
       color: COLOR_SCOPED,
       textColor: COLOR_SCOPED_TEXT,
+      reset: scoped[0].resets_at ? new Date(scoped[0].resets_at) : null,
     });
   }
   if (weekAll || usage.seven_day) {
@@ -301,6 +309,11 @@ function mapClaude(usage: Usage, raw: string): Meters {
         : 100 - (usage.seven_day?.utilization ?? 0),
       color: COLOR_WEEK,
       textColor: COLOR_WEEK_TEXT,
+      reset: weekAll?.resets_at
+        ? new Date(weekAll.resets_at)
+        : usage.seven_day?.resets_at
+          ? new Date(usage.seven_day.resets_at)
+          : null,
     });
   }
   // expandable, not dynamic: surface unknowns for a deliberate registry

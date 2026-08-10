@@ -220,6 +220,12 @@ body.noanim * {
   vertical-align: -1px;
 }
 
+/* strip entries separate by spacing alone; the swatch is the identity */
+#pill .gap {
+  display: inline-block;
+  width: 10px;
+}
+
 /* swatch = the meter's icon: a miniature of its bar fill */
 #pill .swatch {
   display: inline-block;

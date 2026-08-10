@@ -121,8 +121,52 @@ fn query_usage(token: &str) -> Result<String, String> {
     }
 }
 
+fn cache_path(app: &AppHandle) -> Option<std::path::PathBuf> {
+    app.path()
+        .app_config_dir()
+        .ok()
+        .map(|d| d.join("last_usage.json"))
+}
+
+fn unix_ms() -> u128 {
+    std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_millis())
+        .unwrap_or(0)
+}
+
+/// Preload the disk cache at startup so a restart paints real (slightly
+/// stale) numbers instantly instead of "syncing" until the first fetch.
+/// Skip stale caches: applying hours-old data would spawn bogus ghost
+/// animations when the fresh fetch lands.
+const CACHE_FRESH_MS: u128 = 30 * 60 * 1000;
+
+fn load_cache(app: &AppHandle) {
+    let Some(path) = cache_path(app) else { return };
+    let Ok(bytes) = std::fs::read(path) else { return };
+    let Ok(v) = serde_json::from_slice::<serde_json::Value>(&bytes) else { return };
+    let fresh = v["at"]
+        .as_u64()
+        .is_some_and(|at| unix_ms().saturating_sub(at as u128) < CACHE_FRESH_MS);
+    if fresh {
+        if let Some(body) = v["body"].as_str() {
+            *LAST_USAGE.lock().unwrap() = Some(body.to_string());
+        }
+    }
+}
+
+fn save_cache(app: &AppHandle, body: &str) {
+    if let Some(path) = cache_path(app) {
+        if let Some(dir) = path.parent() {
+            let _ = std::fs::create_dir_all(dir);
+        }
+        let v = serde_json::json!({ "at": unix_ms() as u64, "body": body });
+        let _ = std::fs::write(path, v.to_string());
+    }
+}
+
 #[tauri::command]
-async fn fetch_usage() -> Result<String, String> {
+async fn fetch_usage(app: AppHandle) -> Result<String, String> {
     let result = tauri::async_runtime::spawn_blocking(|| {
         let token = keychain_token()?;
         query_usage(&token)
@@ -131,6 +175,7 @@ async fn fetch_usage() -> Result<String, String> {
     .map_err(|e| e.to_string())?;
     if let Ok(body) = &result {
         *LAST_USAGE.lock().unwrap() = Some(body.clone());
+        save_cache(&app, body);
     }
     result
 }
@@ -303,6 +348,7 @@ pub fn run() {
 
             let handle = app.handle().clone();
             load_settings(&handle);
+            load_cache(&handle);
 
             let win = app.get_webview_window("main").expect("main window");
             win.set_ignore_cursor_events(true)?;

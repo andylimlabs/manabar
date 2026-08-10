@@ -218,6 +218,19 @@ async function refresh() {
 }
 
 if (isMain) {
+  // Paint the disk-cached payload instantly (restart amnesia fix); the
+  // fresh fetch corrects it moments later.
+  invoke<string | null>("cached_usage")
+    .then((raw) => {
+      if (raw && !state.hasData) {
+        try {
+          applyUsage(raw);
+        } catch {
+          // stale cache shape mismatch: the fetch will supply good data
+        }
+      }
+    })
+    .catch(() => {});
   refresh();
 } else {
   // Broadcasts give instant updates; the cache poll (local, no network) covers

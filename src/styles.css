@@ -254,6 +254,16 @@ body.noanim * {
   background: #6e7bf2;
 }
 
+/* Single-meter providers (e.g. Codex plans with one window): the weekly
+   strip hides and the mana bar takes the screen edge */
+body.single-meter #bar {
+  display: none;
+}
+
+body.single-meter #sessionbar {
+  bottom: 0;
+}
+
 #pill .session {
   color: #7dd6c6;
   font-weight: 600;

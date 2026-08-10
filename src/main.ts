@@ -20,6 +20,13 @@ type Usage = {
   seven_day: LimitWindow | null;
   limits?: Limit[];
 };
+type CodexWindow = { used_percent: number; reset_at?: number | null };
+type CodexUsage = {
+  rate_limit?: {
+    primary_window?: CodexWindow | null;
+    secondary_window?: CodexWindow | null;
+  } | null;
+} | null;
 
 // ?poll= override exists for harness testing only; production default is 60s
 // (the usage endpoint rate-limits aggressively, do not poll faster).
@@ -49,8 +56,10 @@ type State = {
   weekLeft: number;
   fableLeft: number | null; // scoped per-model weekly, overlaps the session strip
   fableName: string;
+  singleMeter: boolean;
   failures: number;
   hasData: boolean;
+  setupNeeded: boolean;
   refillAt: number | null;
   refillAmt: number;
 };
@@ -64,8 +73,10 @@ const state: State = {
   weekLeft: 100,
   fableLeft: null,
   fableName: "fable",
+  singleMeter: false,
   failures: 0,
   hasData: false,
+  setupNeeded: false,
   refillAt: null,
   refillAmt: 0,
 };
@@ -150,8 +161,11 @@ function countdown(to: Date | null): string {
 
 function render() {
   if (!state.hasData) {
-    label.textContent =
-      state.failures >= MAX_FAILURES ? "usage unavailable" : "syncing…";
+    label.textContent = state.setupNeeded
+      ? "sign in to Claude Code or Codex to start"
+      : state.failures >= MAX_FAILURES
+        ? "usage unavailable"
+        : "syncing…";
     return;
   }
 
@@ -185,58 +199,117 @@ function render() {
     state.fableLeft === null
       ? ""
       : `${div}<span class="swatch sw-fable"></span><span class="dim">${state.fableName}</span> <span class="fable">${Math.round(state.fableLeft)}%</span>`;
-  const weekTxt = `${div}<span class="swatch sw-week"></span><span class="dim">week</span> <span class="week">${Math.round(state.weekLeft)}%</span>`;
+  const weekTxt = state.singleMeter
+    ? ""
+    : `${div}<span class="swatch sw-week"></span><span class="dim">week</span> <span class="week">${Math.round(state.weekLeft)}%</span>`;
   const refillTxt =
     state.refillAt && Date.now() - state.refillAt < REFILL_NOTE_MS
       ? ` <span class="gold">+${Math.round(state.refillAmt)}% mana refilled</span>`
       : "";
   label.innerHTML = sessionTxt + fableTxt + weekTxt + refillTxt;
+  document.body.classList.toggle("single-meter", state.singleMeter);
 }
 
 let demoRunning = false;
 let demoBuffer: string | null = null;
+
+// The HUD renders ONE provider's game at a time (Andy's call: no
+// multi-sub dashboard). Both are fetched; this picks the active one.
+let provider: "claude" | "codex" = "claude";
+let lastGoodRaw: string | null = null;
+
+type Meters = {
+  sessionLeft: number;
+  sessionReset: Date | null;
+  weekLeft: number;
+  fableLeft: number | null;
+  fableName: string;
+  singleMeter: boolean;
+};
+
+function mapClaude(usage: Usage, raw: string): Meters {
+  const limits = usage.limits ?? [];
+  const session = limits.find((l) => l.kind === "session");
+  const weeklies = limits.filter((l) => l.group === "weekly");
+  if (!session && !usage.five_hour) {
+    throw new Error(`no meters in response: ${raw.slice(0, 120)}`);
+  }
+  const weekAll = weeklies.find((l) => l.kind === "weekly_all");
+  const scoped = weeklies.find((l) => l.kind === "weekly_scoped");
+  return {
+    sessionLeft: session
+      ? 100 - session.percent
+      : 100 - (usage.five_hour?.utilization ?? 0),
+    sessionReset: session?.resets_at
+      ? new Date(session.resets_at)
+      : usage.five_hour?.resets_at
+        ? new Date(usage.five_hour.resets_at)
+        : null,
+    weekLeft: weekAll
+      ? 100 - weekAll.percent
+      : usage.seven_day
+        ? 100 - usage.seven_day.utilization
+        : 100,
+    fableLeft: scoped ? 100 - scoped.percent : null,
+    fableName: (scoped?.scope?.model?.display_name ?? "fable").toLowerCase(),
+    singleMeter: false,
+  };
+}
+
+function mapCodex(codex: CodexUsage, raw: string): Meters {
+  const rl = codex?.rate_limit;
+  const primary = rl?.primary_window ?? null;
+  const secondary = rl?.secondary_window ?? null;
+  if (!primary && !secondary) {
+    throw new Error(`no codex meters in response: ${raw.slice(0, 120)}`);
+  }
+  // secondary (short window) plays the mana bar when present; primary
+  // (weekly) is the strip. With only one window, the strip hides.
+  const mana = (secondary ?? primary) as CodexWindow;
+  const week = secondary ? primary : null;
+  const toDate = (w: CodexWindow | null) =>
+    w?.reset_at ? new Date(w.reset_at * 1000) : null;
+  return {
+    sessionLeft: 100 - mana.used_percent,
+    sessionReset: toDate(mana),
+    weekLeft: week ? 100 - week.used_percent : 100,
+    fableLeft: null,
+    fableName: "fable",
+    singleMeter: !week,
+  };
+}
 
 function applyUsage(raw: string) {
   if (demoRunning) {
     demoBuffer = raw;
     return;
   }
-  {
-    const usage = JSON.parse(raw) as Usage;
-    const limits = usage.limits ?? [];
-    const session = limits.find((l) => l.kind === "session");
-    const weeklies = limits.filter((l) => l.group === "weekly");
-    if (!session && !usage.five_hour) {
-      throw new Error(`no meters in response: ${raw.slice(0, 120)}`);
-    }
+  const parsed = JSON.parse(raw);
+  const isEnvelope =
+    parsed && typeof parsed === "object" && ("claude" in parsed || "codex" in parsed);
+  const usage = (isEnvelope ? parsed.claude : parsed) as Usage | null;
+  const codex = (isEnvelope ? parsed.codex : null) as CodexUsage;
+  if (!usage && !codex) {
+    throw new Error(`no providers in response: ${raw.slice(0, 120)}`);
+  }
+  let m: Meters | null = null;
+  if (provider === "codex") {
+    if (codex?.rate_limit) m = mapCodex(codex, raw);
+  } else if (usage) {
+    m = mapClaude(usage, raw);
+  }
+  lastGoodRaw = raw;
+  if (m) {
     const prevLeft = state.hasData ? state.sessionLeft : null;
     const prevWeekEdge = state.hasData
       ? weekFront(state.weekLeft, state.fableLeft)
       : null;
-    if (session) {
-      state.sessionLeft = 100 - session.percent;
-      state.sessionReset = session.resets_at
-        ? new Date(session.resets_at)
-        : null;
-    } else {
-      state.sessionLeft = 100 - (usage.five_hour?.utilization ?? 0);
-      state.sessionReset = usage.five_hour?.resets_at
-        ? new Date(usage.five_hour.resets_at)
-        : null;
-    }
-    const weekAll = weeklies.find((l) => l.kind === "weekly_all");
-    const scoped = weeklies.find((l) => l.kind === "weekly_scoped");
-    state.weekLeft = weekAll
-      ? 100 - weekAll.percent
-      : usage.seven_day
-        ? 100 - usage.seven_day.utilization
-        : 100;
-    state.fableLeft = scoped ? 100 - scoped.percent : null;
-    state.fableName = (
-      scoped?.scope?.model?.display_name ?? "fable"
-    ).toLowerCase();
-    state.failures = 0;
-    state.hasData = true;
+    state.sessionLeft = m.sessionLeft;
+    state.sessionReset = m.sessionReset;
+    state.weekLeft = m.weekLeft;
+    state.fableLeft = m.fableLeft;
+    state.fableName = m.fableName;
+    state.singleMeter = m.singleMeter;
     if (prevLeft !== null) {
       const now = state.sessionLeft;
       if (now > prevLeft + 1) {
@@ -277,6 +350,9 @@ function applyUsage(raw: string) {
       }
     }
   }
+  state.failures = 0;
+  state.setupNeeded = false;
+  state.hasData = true;
   render();
 }
 
@@ -287,6 +363,7 @@ async function refresh() {
     emit("usage-raw", raw);
   } catch (e) {
     state.failures += 1;
+    state.setupNeeded = String(e).includes("no-providers");
     console.error("usage fetch failed:", e);
     render();
   }
@@ -439,6 +516,31 @@ listen("demo", () => {
 window.addEventListener("manabar-demo", () => {
   runDemo();
 });
+
+// Provider switch: reset the display instantly (no bogus delta animations)
+// and re-map the last good payload under the new provider.
+function setProvider(p: string) {
+  const next = p === "codex" ? "codex" : "claude";
+  if (next === provider) return;
+  provider = next;
+  clearPending();
+  document.querySelectorAll(".ghost, .refill, .shine").forEach((el) => el.remove());
+  state.hasData = false;
+  document.body.classList.add("noanim");
+  if (lastGoodRaw) {
+    try {
+      applyUsage(lastGoodRaw);
+    } catch {
+      // active provider absent from the payload: next poll will populate
+    }
+  }
+  render();
+  setTimeout(() => document.body.classList.remove("noanim"), 80);
+}
+invoke<string>("get_provider")
+  .then(setProvider)
+  .catch(() => {});
+listen<string>("provider", (e) => setProvider(e.payload));
 
 function setHudSize(size: string) {
   document.body.classList.remove("size-compact", "size-large");

@@ -27,6 +27,17 @@ fn hud_mode() -> String {
 
 /// HUD size preset: "compact" | "standard" | "large" (empty = standard).
 static HUD_SIZE: Mutex<String> = Mutex::new(String::new());
+/// Active provider: the HUD shows ONE game at a time ("claude" | "codex").
+static PROVIDER: Mutex<String> = Mutex::new(String::new());
+
+fn active_provider() -> String {
+    let p = PROVIDER.lock().unwrap().clone();
+    if p.is_empty() {
+        "claude".into()
+    } else {
+        p
+    }
+}
 
 fn hud_size() -> String {
     let s = HUD_SIZE.lock().unwrap().clone();
@@ -109,9 +120,14 @@ fn query_usage(token: &str) -> Result<String, String> {
         .map_err(|e| format!("curl wait: {e}"))?;
     let raw = String::from_utf8_lossy(&out.stdout).to_string();
     let (body, status) = raw.rsplit_once('\n').unwrap_or((raw.as_str(), ""));
-    if status.trim() != "200" {
+    let status = status.trim();
+    if status == "404" || status == "410" {
+        // endpoint moved or retired: manabar itself needs updating
+        return Err(format!("gone: http {status}"));
+    }
+    if status != "200" {
         let head: String = body.chars().take(120).collect();
-        return Err(format!("http {}: {head}", status.trim()));
+        return Err(format!("http {status}: {head}"));
     }
     if body.trim_start().starts_with('{') {
         Ok(body.to_string())
@@ -119,6 +135,66 @@ fn query_usage(token: &str) -> Result<String, String> {
         let head: String = body.chars().take(120).collect();
         Err(format!("unexpected response: {head}"))
     }
+}
+
+const NO_CREDS: &str = "no-creds";
+
+fn read_codex_auth() -> Result<(String, String), String> {
+    let home = std::env::var("HOME").map_err(|_| format!("{NO_CREDS}: no HOME"))?;
+    let path = std::path::Path::new(&home).join(".codex/auth.json");
+    let bytes = std::fs::read(path).map_err(|_| format!("{NO_CREDS}: no codex auth"))?;
+    let v: serde_json::Value =
+        serde_json::from_slice(&bytes).map_err(|e| format!("codex auth parse: {e}"))?;
+    let token = v["tokens"]["access_token"]
+        .as_str()
+        .ok_or(format!("{NO_CREDS}: no codex access_token"))?;
+    let acct = v["tokens"]["account_id"].as_str().unwrap_or_default();
+    Ok((token.to_string(), acct.to_string()))
+}
+
+fn query_codex(token: &str, account_id: &str) -> Result<String, String> {
+    // Both headers over stdin (-H @- reads one header per line): the token
+    // never appears in argv.
+    let mut child = Command::new("curl")
+        .args([
+            "-s",
+            "-m",
+            "10",
+            "-w",
+            "\n%{http_code}",
+            "https://chatgpt.com/backend-api/wham/usage",
+            "-H",
+            "@-",
+        ])
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::null())
+        .spawn()
+        .map_err(|e| format!("curl spawn: {e}"))?;
+    child
+        .stdin
+        .take()
+        .ok_or("no curl stdin")?
+        .write_all(
+            format!("Authorization: Bearer {token}\nchatgpt-account-id: {account_id}").as_bytes(),
+        )
+        .map_err(|e| format!("curl stdin write: {e}"))?;
+    let out = child
+        .wait_with_output()
+        .map_err(|e| format!("curl wait: {e}"))?;
+    let raw = String::from_utf8_lossy(&out.stdout).to_string();
+    let (body, status) = raw.rsplit_once('\n').unwrap_or((raw.as_str(), ""));
+    let status = status.trim();
+    if status == "404" || status == "410" {
+        return Err(format!("gone: http {status}"));
+    }
+    if status != "200" {
+        let head: String = body.chars().take(120).collect();
+        return Err(format!("http {status}: {head}"));
+    }
+    serde_json::from_str::<serde_json::Value>(body)
+        .map(|_| body.to_string())
+        .map_err(|e| format!("codex parse: {e}"))
 }
 
 fn cache_path(app: &AppHandle) -> Option<std::path::PathBuf> {
@@ -165,11 +241,56 @@ fn save_cache(app: &AppHandle, body: &str) {
     }
 }
 
+/// Fetch every provider; succeed if ANY does. The envelope keys a provider
+/// to its parsed payload, or null when that provider is unavailable.
 #[tauri::command]
 async fn fetch_usage(app: AppHandle) -> Result<String, String> {
     let result = tauri::async_runtime::spawn_blocking(|| {
-        let token = keychain_token()?;
-        query_usage(&token)
+        let claude = keychain_token().and_then(|t| query_usage(&t));
+        let codex = read_codex_auth().and_then(|(t, a)| query_codex(&t, &a));
+        match (&claude, &codex) {
+            (Err(ce), Err(xe)) => {
+                if ce.starts_with(NO_CREDS) && xe.starts_with(NO_CREDS) {
+                    Err("no-providers".to_string())
+                } else if ce.starts_with("gone") || xe.starts_with("gone") {
+                    Err(format!("gone: claude[{ce}] codex[{xe}]"))
+                } else {
+                    Err(format!("claude[{ce}] codex[{xe}]"))
+                }
+            }
+            _ => {
+                let parse = |r: &Result<String, String>| {
+                    r.as_ref()
+                        .ok()
+                        .and_then(|b| serde_json::from_str::<serde_json::Value>(b).ok())
+                        .unwrap_or(serde_json::Value::Null)
+                };
+                let err_of =
+                    |r: &Result<String, String>| r.as_ref().err().cloned().unwrap_or_default();
+                // Per-provider merge: one provider failing must not evict the
+                // other's (or its own) last good data from the cache.
+                let prev: serde_json::Value = LAST_USAGE
+                    .lock()
+                    .unwrap()
+                    .as_deref()
+                    .and_then(|b| serde_json::from_str(b).ok())
+                    .unwrap_or(serde_json::Value::Null);
+                let keep = |cur: serde_json::Value, key: &str| {
+                    if cur.is_null() {
+                        prev[key].clone()
+                    } else {
+                        cur
+                    }
+                };
+                Ok(serde_json::json!({
+                    "claude": keep(parse(&claude), "claude"),
+                    "codex": keep(parse(&codex), "codex"),
+                    "claude_error": err_of(&claude),
+                    "codex_error": err_of(&codex),
+                })
+                .to_string())
+            }
+        }
     })
     .await
     .map_err(|e| e.to_string())?;
@@ -177,7 +298,41 @@ async fn fetch_usage(app: AppHandle) -> Result<String, String> {
         *LAST_USAGE.lock().unwrap() = Some(body.clone());
         save_cache(&app, body);
     }
+    update_status(&app, &result);
     result
+}
+
+struct StatusItem(tauri::menu::MenuItem<tauri::Wry>);
+
+/// Tray diagnostics: facts and hedged hints live here, never in the pill.
+fn update_status(app: &AppHandle, result: &Result<String, String>) {
+    fn prov(err: &str) -> &'static str {
+        if err.is_empty() {
+            "OK"
+        } else if err.starts_with("gone") {
+            "API changed?"
+        } else if err.starts_with(NO_CREDS) {
+            "not signed in"
+        } else {
+            "error"
+        }
+    }
+    let text = match result {
+        Ok(body) => {
+            let v: serde_json::Value = serde_json::from_str(body).unwrap_or_default();
+            format!(
+                "Status: Claude {} · Codex {}",
+                prov(v["claude_error"].as_str().unwrap_or("")),
+                prov(v["codex_error"].as_str().unwrap_or("")),
+            )
+        }
+        Err(e) if e == "no-providers" => "Status: no CLI sign-ins found".to_string(),
+        Err(e) if e.starts_with("gone") => "Status: API changed? app may need an update".to_string(),
+        Err(_) => "Status: fetch failing, will retry".to_string(),
+    };
+    if let Some(s) = app.try_state::<StatusItem>() {
+        let _ = s.0.set_text(text);
+    }
 }
 
 #[tauri::command]
@@ -198,6 +353,11 @@ fn get_hud_mode() -> String {
 #[tauri::command]
 fn get_hud_size() -> String {
     hud_size()
+}
+
+#[tauri::command]
+fn get_provider() -> String {
+    active_provider()
 }
 
 fn settings_path(app: &AppHandle) -> Option<std::path::PathBuf> {
@@ -229,6 +389,11 @@ fn load_settings(app: &AppHandle) {
                         *HUD_SIZE.lock().unwrap() = s.to_string();
                     }
                 }
+                if let Some(p) = v["provider"].as_str() {
+                    if ["claude", "codex"].contains(&p) {
+                        *PROVIDER.lock().unwrap() = p.to_string();
+                    }
+                }
             }
         }
     }
@@ -244,6 +409,7 @@ fn save_settings(app: &AppHandle) {
             "label_position": label_pos(),
             "hud_mode": hud_mode(),
             "hud_size": hud_size(),
+            "provider": active_provider(),
         });
         let _ = std::fs::write(path, v.to_string());
     }
@@ -340,7 +506,8 @@ pub fn run() {
             cached_usage,
             get_label_position,
             get_hud_mode,
-            get_hud_size
+            get_hud_size,
+            get_provider
         ])
         .setup(|app| {
             #[cfg(target_os = "macos")]
@@ -454,8 +621,29 @@ pub fn run() {
                 true,
                 &[&size_compact, &size_standard, &size_large],
             )?;
+            let prov = active_provider();
+            let prov_claude = CheckMenuItem::with_id(
+                app,
+                "prov-claude",
+                "Claude",
+                true,
+                prov == "claude",
+                None::<&str>,
+            )?;
+            let prov_codex = CheckMenuItem::with_id(
+                app,
+                "prov-codex",
+                "Codex",
+                true,
+                prov == "codex",
+                None::<&str>,
+            )?;
+            let providers =
+                Submenu::with_items(app, "Provider", true, &[&prov_claude, &prov_codex])?;
             let demo =
                 MenuItem::with_id(app, "demo", "Preview animations", true, None::<&str>)?;
+            let status = MenuItem::with_id(app, "status", "Status: starting…", false, None::<&str>)?;
+            app.manage(StatusItem(status.clone()));
             let quit = MenuItem::with_id(app, "quit", "Quit manabar", true, None::<&str>)?;
             let sep1 = PredefinedMenuItem::separator(app)?;
             let sep2 = PredefinedMenuItem::separator(app)?;
@@ -466,11 +654,13 @@ pub fn run() {
                     &hud_minimal,
                     &hud_hidden,
                     &sep1,
+                    &providers,
                     &sizes,
                     &labels,
                     &all_displays,
                     &demo,
                     &sep2,
+                    &status,
                     &quit,
                 ],
             )?;
@@ -482,6 +672,7 @@ pub fn run() {
                 size_standard.clone(),
                 size_large.clone(),
             ];
+            let prov_items = [prov_claude.clone(), prov_codex.clone()];
             TrayIconBuilder::new()
                 .icon(app.default_window_icon().expect("app icon").clone())
                 .menu(&menu)
@@ -506,6 +697,15 @@ pub fn run() {
                         let _ = all_item.set_checked(on);
                         save_settings(app);
                         reconcile(app);
+                    }
+                    id if id.starts_with("prov-") => {
+                        let p = id.trim_start_matches("prov-").to_string();
+                        *PROVIDER.lock().unwrap() = p.clone();
+                        for item in &prov_items {
+                            let _ = item.set_checked(item.id().as_ref() == id);
+                        }
+                        save_settings(app);
+                        let _ = app.emit("provider", p);
                     }
                     id if id.starts_with("size-") => {
                         let size = id.trim_start_matches("size-").to_string();

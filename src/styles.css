@@ -238,9 +238,7 @@ body.noanim * {
   background: #6e7bf2;
 }
 
-/* Single-meter providers (e.g. Codex plans with one window): the weekly
-   strip hides, the mana bar takes the screen edge, and the readout drops
-   to sit just above it */
+/* Providers with no strip meters: mana bar takes the screen edge */
 body.single-meter #bar {
   display: none;
 }
@@ -251,6 +249,16 @@ body.single-meter #sessionbar {
 
 body.single-meter #pill {
   bottom: calc(var(--session-h) + 5px);
+}
+
+/* Providers with no session pool (e.g. Codex weekly-only plans): the
+   weekly strip stands alone and the readout drops to sit above it */
+body.no-mana #sessionbar {
+  display: none;
+}
+
+body.no-mana #pill {
+  bottom: calc(var(--week-h) + 5px);
 }
 
 #pill .session {

@@ -54,18 +54,18 @@ type StripMeter = {
   left: number; // percent remaining
   color: string; // fill color
   textColor: string; // pill value color
+  reset?: Date | null; // shown in the pill only when there is no mana pool
 };
 
 // generated strip fill elements, keyed by meter key
 const stripEls = new Map<string, HTMLElement>();
 
 type State = {
-  sessionLeft: number; // true percent remaining (pill shows this)
+  sessionLeft: number | null; // true percent remaining; null = no session pool
   displayLeft: number; // what the fill shows: committed one poll behind
   pending: { to: number } | null;
   pendingEl: HTMLElement | null;
   sessionReset: Date | null;
-  manaKind: "session" | "week";
   strip: StripMeter[];
   failures: number;
   hasData: boolean;
@@ -81,7 +81,6 @@ const state: State = {
   pending: null,
   pendingEl: null,
   sessionReset: null,
-  manaKind: "session",
   strip: [],
   failures: 0,
   hasData: false,
@@ -186,7 +185,10 @@ function render() {
 
   const left = state.sessionLeft;
   const shown = state.displayLeft;
-  fill.style.width = `${Math.max(0, Math.min(100, shown))}%`;
+  document.body.classList.toggle("no-mana", left === null);
+  if (left !== null) {
+    fill.style.width = `${Math.max(0, Math.min(100, shown))}%`;
+  }
 
   // reconcile generated strip fills against the curated meter list;
   // lowest remaining renders in front, the taller ones peek out behind
@@ -211,37 +213,37 @@ function render() {
     el.style.zIndex = String(Math.max(1, 3 - idx));
   });
 
-  const crit = left <= 10;
-  const warn = !crit && left <= 30;
-  // fill color follows what the fill SHOWS (one poll behind); pill follows
-  // truth. A weekly pool in the mana slot keeps the weekly indigo.
-  const calmColor = state.manaKind === "week" ? COLOR_WEEK : "#5ecbba";
-  fill.style.backgroundColor =
-    shown <= 10 ? "#e25a5a" : shown <= 30 ? "#e0a83c" : calmColor;
+  const crit = left !== null && left <= 10;
+  const warn = !crit && left !== null && left <= 30;
+  if (left !== null) {
+    // fill color follows what the fill SHOWS (one poll behind); pill truth
+    fill.style.backgroundColor =
+      shown <= 10 ? "#e25a5a" : shown <= 30 ? "#e0a83c" : "#5ecbba";
+  }
   pill.classList.toggle("crit", crit);
   pill.classList.toggle("warn", warn);
   pill.classList.toggle("stale", state.failures >= MAX_FAILURES);
 
-  // mana is reserved for session-based limits; a weekly pool in the mana
-  // slot speaks weekly language (name, verb, indigo)
-  const isWeekKind = state.manaKind === "week";
-  const kindLabel = isWeekKind ? "week" : "mana";
-  const kindVerb = isWeekKind ? "resets in" : "refills in";
-  const manaStyle = isWeekKind ? ` style="color:${COLOR_WEEK_TEXT}"` : "";
   const sessionTxt =
-    left <= 0
-      ? `<span class="session"${manaStyle}>${kindLabel} tapped</span> <span class="dim">· ${kindVerb} ${countdown(state.sessionReset)}</span>`
-      : `<span class="session"${manaStyle}>${Math.round(left)}% ${kindLabel} left</span> <span class="dim">· ${kindVerb} ${countdown(state.sessionReset)}</span>`;
+    left === null
+      ? ""
+      : left <= 0
+        ? `<span class="session">mana tapped</span> <span class="dim">· refills in ${countdown(state.sessionReset)}</span>`
+        : `<span class="session">${Math.round(left)}% mana left</span> <span class="dim">· refills in ${countdown(state.sessionReset)}</span>`;
   const div = `<span class="divider"></span>`;
   const stripTxt = state.strip
-    .map(
-      (m) =>
-        `${div}<span class="swatch" style="background:${m.color}"></span><span class="dim">${m.label}</span> <span style="color:${m.textColor};font-weight:600">${Math.round(m.left)}%</span>`,
-    )
+    .map((m, i) => {
+      const lead = sessionTxt === "" && i === 0 ? "" : div;
+      const reset =
+        sessionTxt === "" && m.reset
+          ? ` <span class="dim">· resets in ${countdown(m.reset)}</span>`
+          : "";
+      return `${lead}<span class="swatch" style="background:${m.color}"></span><span class="dim">${m.label}</span> <span style="color:${m.textColor};font-weight:600">${Math.round(m.left)}%</span>${reset}`;
+    })
     .join("");
   const refillTxt =
     state.refillAt && Date.now() - state.refillAt < REFILL_NOTE_MS
-      ? ` <span class="gold">+${Math.round(state.refillAmt)}% ${state.manaKind === "week" ? "week" : "mana"} refilled</span>`
+      ? ` <span class="gold">+${Math.round(state.refillAmt)}% ${left === null ? "week" : "mana"} refilled</span>`
       : "";
   label.innerHTML = sessionTxt + stripTxt + refillTxt;
   document.body.classList.toggle("single-meter", state.strip.length === 0);
@@ -256,11 +258,8 @@ let provider: "claude" | "codex" = "claude";
 let lastGoodRaw: string | null = null;
 
 type Meters = {
-  sessionLeft: number;
+  sessionLeft: number | null; // null = provider has no session-based pool
   sessionReset: Date | null;
-  // color language encodes the window timescale: a session pool renders
-  // teal, a weekly pool rendered in the mana slot renders weekly indigo
-  manaKind: "session" | "week";
   strip: StripMeter[];
 };
 
@@ -323,13 +322,13 @@ function mapClaude(usage: Usage, raw: string): Meters {
       : usage.five_hour?.resets_at
         ? new Date(usage.five_hour.resets_at)
         : null,
-    manaKind: "session",
     strip,
   };
 }
 
-// The codex meter registry: secondary (short window) plays the mana bar
-// when present; primary (weekly) is the strip. One window = no strip.
+// The codex meter registry: the weekly (primary) is always the strip, in
+// its natural indigo home; the mana bar exists only when the plan has a
+// session-style short window (secondary). No hacky slot borrowing.
 function mapCodex(codex: CodexUsage, raw: string): Meters {
   const rl = codex?.rate_limit;
   const primary = rl?.primary_window ?? null;
@@ -337,23 +336,22 @@ function mapCodex(codex: CodexUsage, raw: string): Meters {
   if (!primary && !secondary) {
     throw new Error(`no codex meters in response: ${raw.slice(0, 120)}`);
   }
-  const mana = (secondary ?? primary) as CodexWindow;
   const toDate = (w: CodexWindow | null) =>
     w?.reset_at ? new Date(w.reset_at * 1000) : null;
   const strip: StripMeter[] = [];
-  if (secondary && primary) {
+  if (primary) {
     strip.push({
       key: "week",
       label: "week",
       left: 100 - primary.used_percent,
       color: COLOR_WEEK,
       textColor: COLOR_WEEK_TEXT,
+      reset: toDate(primary),
     });
   }
   return {
-    sessionLeft: 100 - mana.used_percent,
-    sessionReset: toDate(mana),
-    manaKind: secondary ? "session" : "week",
+    sessionLeft: secondary ? 100 - secondary.used_percent : null,
+    sessionReset: toDate(secondary),
     strip,
   };
 }
@@ -397,10 +395,11 @@ function applyUsage(raw: string) {
     const prevWeekEdge = state.hasData ? stripFront(state.strip) : null;
     state.sessionLeft = m.sessionLeft;
     state.sessionReset = m.sessionReset;
-    state.manaKind = m.manaKind;
     state.strip = m.strip;
-    if (prevLeft !== null) {
-      const now = state.sessionLeft;
+    if (m.sessionLeft === null) {
+      clearPending();
+    } else if (prevLeft !== null) {
+      const now = m.sessionLeft;
       if (now > prevLeft + 1) {
         // window reset: fill sweeps back up with shine + glow + gold + note
         clearPending();
@@ -425,7 +424,7 @@ function applyUsage(raw: string) {
         }
       }
     } else {
-      state.displayLeft = state.sessionLeft;
+      state.displayLeft = state.sessionLeft ?? 100;
     }
     if (prevWeekEdge !== null && state.strip.length) {
       // ghost/refill on the strip's visible front edge (the binding meter)
@@ -433,9 +432,14 @@ function applyUsage(raw: string) {
       if (edge < prevWeekEdge - 0.01) {
         spawnSpan(bar, "ghost", edge, prevWeekEdge - edge, GHOST_TTL_MS);
       } else if (edge > prevWeekEdge + 1) {
-        // weekly reset: same fill-up choreography on the strip
+        // weekly reset: same fill-up choreography on the strip; with no
+        // mana pool the pill note speaks for the week
         playRefill(bar, ...stripEls.values());
         spawnSpan(bar, "refill", prevWeekEdge, edge - prevWeekEdge, REFILL_TTL_MS);
+        if (state.sessionLeft === null) {
+          state.refillAt = Date.now();
+          state.refillAmt = edge - prevWeekEdge;
+        }
       }
     }
   }
@@ -535,42 +539,47 @@ async function runDemo() {
     refillAmt: state.refillAmt,
   };
   clearPending();
-  state.sessionLeft = 74;
-  state.displayLeft = 74;
+  const hasMana = state.sessionLeft !== null;
+  if (hasMana) {
+    state.sessionLeft = 74;
+    state.displayLeft = 74;
+  }
   const demoLefts = [83, 69];
   state.strip = state.strip.map((m, i) => ({ ...m, left: demoLefts[i] ?? m.left }));
   render();
   await sleep(800);
-  // poll 1: drop detected. Numbers update, ghost marks the span, fill holds.
-  state.sessionLeft = 65;
-  state.pendingEl = spawnSpan(sessionbar, "ghost pending", 65, 9, 0);
-  state.pending = { to: 65 };
-  render();
-  await sleep(2600);
-  // poll 2: commit (fill drains through the ghost, ghost fades visibly);
-  // a smaller drop pends.
-  commitPending(1500);
-  state.sessionLeft = 61;
-  state.pendingEl = spawnSpan(sessionbar, "ghost pending", 61, 4, 0);
-  state.pending = { to: 61 };
-  render();
-  await sleep(2600);
-  // poll 3: commit the second drop, then let the ghosts finish vanishing
-  // so the bar is visibly clean before the refill.
-  commitPending(1500);
-  render();
-  await sleep(3400);
-  // session refill: sweep up + shine + glow + short gold, then HOLD the
-  // settled bar in its original color before moving on.
-  clearPending();
-  playRefill(sessionbar, fill);
-  spawnSpan(sessionbar, "refill", state.displayLeft, 100 - state.displayLeft, 2000);
-  state.refillAt = Date.now();
-  state.refillAmt = 100 - state.sessionLeft;
-  state.sessionLeft = 100;
-  state.displayLeft = 100;
-  render();
-  await sleep(4600);
+  if (hasMana) {
+    // poll 1: drop detected. Numbers update, ghost marks the span, fill holds.
+    state.sessionLeft = 65;
+    state.pendingEl = spawnSpan(sessionbar, "ghost pending", 65, 9, 0);
+    state.pending = { to: 65 };
+    render();
+    await sleep(2600);
+    // poll 2: commit (fill drains through the ghost, ghost fades visibly);
+    // a smaller drop pends.
+    commitPending(1500);
+    state.sessionLeft = 61;
+    state.pendingEl = spawnSpan(sessionbar, "ghost pending", 61, 4, 0);
+    state.pending = { to: 61 };
+    render();
+    await sleep(2600);
+    // poll 3: commit the second drop, then let the ghosts finish vanishing
+    // so the bar is visibly clean before the refill.
+    commitPending(1500);
+    render();
+    await sleep(3400);
+    // session refill: sweep up + shine + glow + short gold, then HOLD the
+    // settled bar in its original color before moving on.
+    clearPending();
+    playRefill(sessionbar, fill);
+    spawnSpan(sessionbar, "refill", state.displayLeft, 100 - state.displayLeft, 2000);
+    state.refillAt = Date.now();
+    state.refillAmt = 100 - (state.sessionLeft ?? 0);
+    state.sessionLeft = 100;
+    state.displayLeft = 100;
+    render();
+    await sleep(4600);
+  }
   // weekly reset: same choreography, same settled hold after (skipped for
   // single-meter providers with no strip).
   if (state.strip.length) {

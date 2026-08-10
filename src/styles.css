@@ -223,7 +223,7 @@ body.noanim * {
 /* strip entries separate by spacing alone; the swatch is the identity */
 #pill .gap {
   display: inline-block;
-  width: 10px;
+  width: 7px;
 }
 
 /* swatch = the meter's icon: a miniature of its bar fill */

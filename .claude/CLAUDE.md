@@ -22,7 +22,7 @@ MMO-style mana bar overlay for Claude token limits. Owned by staff-engineer-mira
 
 - `npm run tauri dev`, vite port **1440** (registry: 1420 companion, 1430 suji, 1435 toka). Launch detached: `nohup npm run tauri dev > ~/Library/Logs/manabar-dev.log 2>&1 & disown`.
 - Verify UI via a temp `harness-app.html` at repo root stubbing `window.__TAURI_INTERNALS__` (invoke returns canned usage JSON; `?poll=` speeds the poll for ghost/refill testing). Delete the harness after. The real bars cannot be clicked.
-- Logo source: `design/logo.svg` (mana flask). Regenerate icons: `npm run tauri icon design/logo.svg`.
+- Logo source: `design/logo.svg` (mana crystal, picked 2026-08-10; flask retired). Regenerate icons: `npm run tauri icon design/logo.svg`.
 
 ## Design direction
 

@@ -208,10 +208,14 @@ body {
   color: rgba(255, 255, 255, 0.4);
 }
 
-/* Labels-only mode: numbers without the ambient strips */
-body.labels-only #bar,
-body.labels-only #sessionbar {
+/* Minimal HUD: readout only, dropped into the strips' spot at the screen edge */
+body.minimal #bar,
+body.minimal #sessionbar {
   display: none;
+}
+
+body.minimal #pill {
+  bottom: 3px;
 }
 
 /* Label position setting (default: right) */

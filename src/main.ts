@@ -252,10 +252,10 @@ invoke<string>("get_label_position")
   .catch(() => {});
 listen<string>("label-pos", (e) => setLabelPos(e.payload));
 
-function setLabelsOnly(on: boolean) {
-  document.body.classList.toggle("labels-only", on === true);
+function setHudMode(mode: string) {
+  document.body.classList.toggle("minimal", mode === "minimal");
 }
-invoke<boolean>("get_labels_only")
-  .then(setLabelsOnly)
+invoke<string>("get_hud_mode")
+  .then(setHudMode)
   .catch(() => {});
-listen<boolean>("labels-only", (e) => setLabelsOnly(e.payload));
+listen<string>("hud-mode", (e) => setHudMode(e.payload));

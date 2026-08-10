@@ -4,7 +4,7 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Mutex;
 use std::time::Duration;
 
-use tauri::menu::{CheckMenuItem, Menu, MenuItem, Submenu};
+use tauri::menu::{CheckMenuItem, Menu, MenuItem, PredefinedMenuItem, Submenu};
 use tauri::tray::TrayIconBuilder;
 use tauri::{AppHandle, Emitter, LogicalPosition, LogicalSize, Manager, Monitor, WebviewUrl, WebviewWindowBuilder};
 
@@ -15,9 +15,18 @@ const RECONCILE_SECS: u64 = 15;
 
 /// Show a bar on every display (tray-toggleable, persisted).
 static ALL_DISPLAYS: AtomicBool = AtomicBool::new(true);
-static BARS_HIDDEN: AtomicBool = AtomicBool::new(false);
-/// Labels-only mode: hide the meter strips, keep the readout pill.
-static LABELS_ONLY: AtomicBool = AtomicBool::new(false);
+/// HUD mode: "full" (bars + readout), "minimal" (readout only, hugging the
+/// screen edge), "hidden" (nothing). One radio state, game-style.
+static HUD_MODE: Mutex<String> = Mutex::new(String::new());
+
+fn hud_mode() -> String {
+    let m = HUD_MODE.lock().unwrap().clone();
+    if m.is_empty() {
+        "full".into()
+    } else {
+        m
+    }
+}
 /// Last successful usage payload; lets a late-joining bar catch up instantly
 /// instead of waiting for the primary window's next poll.
 static LAST_USAGE: Mutex<Option<String>> = Mutex::new(None);
@@ -117,8 +126,8 @@ fn get_label_position() -> String {
 }
 
 #[tauri::command]
-fn get_labels_only() -> bool {
-    LABELS_ONLY.load(Ordering::Relaxed)
+fn get_hud_mode() -> String {
+    hud_mode()
 }
 
 fn settings_path(app: &AppHandle) -> Option<std::path::PathBuf> {
@@ -137,8 +146,13 @@ fn load_settings(app: &AppHandle) {
                         *LABEL_POS.lock().unwrap() = p.to_string();
                     }
                 }
-                if let Some(b) = v["labels_only"].as_bool() {
-                    LABELS_ONLY.store(b, Ordering::Relaxed);
+                if let Some(m) = v["hud_mode"].as_str() {
+                    if ["full", "minimal", "hidden"].contains(&m) {
+                        *HUD_MODE.lock().unwrap() = m.to_string();
+                    }
+                } else if v["labels_only"].as_bool() == Some(true) {
+                    // migrate the pre-HUD-mode setting
+                    *HUD_MODE.lock().unwrap() = "minimal".to_string();
                 }
             }
         }
@@ -153,7 +167,7 @@ fn save_settings(app: &AppHandle) {
         let v = serde_json::json!({
             "all_displays": ALL_DISPLAYS.load(Ordering::Relaxed),
             "label_position": label_pos(),
-            "labels_only": LABELS_ONLY.load(Ordering::Relaxed),
+            "hud_mode": hud_mode(),
         });
         let _ = std::fs::write(path, v.to_string());
     }
@@ -191,7 +205,7 @@ fn ensure_bar(app: &AppHandle, label: &str, mon: &Monitor) {
     if let Ok(win) = built {
         let _ = win.set_ignore_cursor_events(true);
         pin_to_monitor(&win, mon);
-        if BARS_HIDDEN.load(Ordering::Relaxed) {
+        if hud_mode() == "hidden" {
             let _ = win.hide();
         }
     }
@@ -227,8 +241,9 @@ fn reconcile(app: &AppHandle) {
     }
 }
 
-fn set_bars_hidden(app: &AppHandle, hidden: bool) {
-    BARS_HIDDEN.store(hidden, Ordering::Relaxed);
+fn apply_hud_mode(app: &AppHandle) {
+    let mode = hud_mode();
+    let hidden = mode == "hidden";
     for (label, win) in app.webview_windows() {
         if label == "main" || label.starts_with("bar") {
             if hidden {
@@ -238,6 +253,9 @@ fn set_bars_hidden(app: &AppHandle, hidden: bool) {
             }
         }
     }
+    // Hidden windows keep their webviews alive, so they hear this too and
+    // come back in the right mode.
+    let _ = app.emit("hud-mode", mode);
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -247,7 +265,7 @@ pub fn run() {
             fetch_usage,
             cached_usage,
             get_label_position,
-            get_labels_only
+            get_hud_mode
         ])
         .setup(|app| {
             #[cfg(target_os = "macos")]
@@ -271,7 +289,31 @@ pub fn run() {
                 });
             }
 
-            let toggle = MenuItem::with_id(app, "toggle", "Hide bars", true, None::<&str>)?;
+            let mode = hud_mode();
+            let hud_full = CheckMenuItem::with_id(
+                app,
+                "hud-full",
+                "Full HUD",
+                true,
+                mode == "full",
+                None::<&str>,
+            )?;
+            let hud_minimal = CheckMenuItem::with_id(
+                app,
+                "hud-minimal",
+                "Minimal HUD",
+                true,
+                mode == "minimal",
+                None::<&str>,
+            )?;
+            let hud_hidden = CheckMenuItem::with_id(
+                app,
+                "hud-hidden",
+                "Hide HUD",
+                true,
+                mode == "hidden",
+                None::<&str>,
+            )?;
             let all_displays = CheckMenuItem::with_id(
                 app,
                 "alldisplays",
@@ -299,33 +341,45 @@ pub fn run() {
                 cur == "right",
                 None::<&str>,
             )?;
-            let labels =
-                Submenu::with_items(app, "Label position", true, &[&lab_left, &lab_center, &lab_right])?;
-            let labels_only = CheckMenuItem::with_id(
+            let labels = Submenu::with_items(
                 app,
-                "labelsonly",
-                "Labels only",
+                "Readout position",
                 true,
-                LABELS_ONLY.load(Ordering::Relaxed),
-                None::<&str>,
+                &[&lab_left, &lab_center, &lab_right],
             )?;
             let quit = MenuItem::with_id(app, "quit", "Quit manabar", true, None::<&str>)?;
-            let menu =
-                Menu::with_items(app, &[&toggle, &all_displays, &labels, &labels_only, &quit])?;
-            let toggle_item = toggle.clone();
+            let sep1 = PredefinedMenuItem::separator(app)?;
+            let sep2 = PredefinedMenuItem::separator(app)?;
+            let menu = Menu::with_items(
+                app,
+                &[
+                    &hud_full,
+                    &hud_minimal,
+                    &hud_hidden,
+                    &sep1,
+                    &labels,
+                    &all_displays,
+                    &sep2,
+                    &quit,
+                ],
+            )?;
             let all_item = all_displays.clone();
             let lab_items = [lab_left.clone(), lab_center.clone(), lab_right.clone()];
-            let labels_only_item = labels_only.clone();
+            let hud_items = [hud_full.clone(), hud_minimal.clone(), hud_hidden.clone()];
             TrayIconBuilder::new()
                 .icon(app.default_window_icon().expect("app icon").clone())
                 .menu(&menu)
                 .show_menu_on_left_click(true)
                 .on_menu_event(move |app, event| match event.id.as_ref() {
                     "quit" => app.exit(0),
-                    "toggle" => {
-                        let hidden = !BARS_HIDDEN.load(Ordering::Relaxed);
-                        set_bars_hidden(app, hidden);
-                        let _ = toggle_item.set_text(if hidden { "Show bars" } else { "Hide bars" });
+                    id if id.starts_with("hud-") => {
+                        let mode = id.trim_start_matches("hud-").to_string();
+                        *HUD_MODE.lock().unwrap() = mode;
+                        for item in &hud_items {
+                            let _ = item.set_checked(item.id().as_ref() == id);
+                        }
+                        save_settings(app);
+                        apply_hud_mode(app);
                     }
                     "alldisplays" => {
                         let on = !ALL_DISPLAYS.load(Ordering::Relaxed);
@@ -333,13 +387,6 @@ pub fn run() {
                         let _ = all_item.set_checked(on);
                         save_settings(app);
                         reconcile(app);
-                    }
-                    "labelsonly" => {
-                        let on = !LABELS_ONLY.load(Ordering::Relaxed);
-                        LABELS_ONLY.store(on, Ordering::Relaxed);
-                        let _ = labels_only_item.set_checked(on);
-                        save_settings(app);
-                        let _ = app.emit("labels-only", on);
                     }
                     id if id.starts_with("label-") => {
                         let pos = id.trim_start_matches("label-").to_string();

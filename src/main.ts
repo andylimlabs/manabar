@@ -41,7 +41,10 @@ const pill = document.getElementById("pill")!;
 const label = document.getElementById("label")!;
 
 type State = {
-  sessionLeft: number; // percent remaining, 0..100
+  sessionLeft: number; // true percent remaining (pill shows this)
+  displayLeft: number; // what the fill shows: committed one poll behind
+  pending: { to: number } | null;
+  pendingEl: HTMLElement | null;
   sessionReset: Date | null;
   weekLeft: number;
   fableLeft: number | null; // scoped per-model weekly, overlaps the session strip
@@ -54,6 +57,9 @@ type State = {
 
 const state: State = {
   sessionLeft: 100,
+  displayLeft: 100,
+  pending: null,
+  pendingEl: null,
   sessionReset: null,
   weekLeft: 100,
   fableLeft: null,
@@ -65,21 +71,63 @@ const state: State = {
 };
 
 // Spans live under the tick overlay so segments read as one surface.
+// ttl 0 = persistent (caller manages removal).
 function spawnSpan(
   host: HTMLElement,
   cls: string,
   leftPct: number,
   widthPct: number,
   ttl: number,
-) {
+): HTMLElement {
   const el = document.createElement("div");
   el.className = cls;
   el.style.left = `${leftPct}%`;
   el.style.width = `${widthPct}%`;
-  el.style.animationDuration = `${ttl}ms`;
+  if (ttl > 0) {
+    el.style.animationDuration = `${ttl}ms`;
+    setTimeout(() => el.remove(), ttl + 200);
+  }
   if (host === bar) host.insertBefore(el, ticks);
   else host.appendChild(el);
-  setTimeout(() => el.remove(), ttl + 200);
+  return el;
+}
+
+const GHOST_FADE_MS = 45_000;
+
+// A pending drop commits on the NEXT poll: the fill drains through the
+// ghost span, and the ghost starts its fade.
+function commitPending() {
+  if (!state.pending) return;
+  state.displayLeft = state.pending.to;
+  fill.classList.add("draining");
+  setTimeout(() => fill.classList.remove("draining"), 2000);
+  if (state.pendingEl) {
+    const el = state.pendingEl;
+    el.className = "ghost fading";
+    setTimeout(() => el.remove(), GHOST_FADE_MS + 200);
+  }
+  state.pending = null;
+  state.pendingEl = null;
+}
+
+function clearPending() {
+  if (state.pendingEl) state.pendingEl.remove();
+  state.pending = null;
+  state.pendingEl = null;
+}
+
+// Refill choreography: fills sweep up, a shine crosses the strip, brief glow.
+function playRefill(host: HTMLElement, ...fills: HTMLElement[]) {
+  for (const f of fills) {
+    f.classList.add("refilling");
+    setTimeout(() => f.classList.remove("refilling"), 1700);
+  }
+  const shine = document.createElement("div");
+  shine.className = "shine";
+  host.appendChild(shine);
+  setTimeout(() => shine.remove(), 1400);
+  host.classList.add("glow");
+  setTimeout(() => host.classList.remove("glow"), 1800);
 }
 
 // front edge of the weekly strip = the lower of the two weekly meters
@@ -106,7 +154,8 @@ function render() {
   }
 
   const left = state.sessionLeft;
-  fill.style.width = `${Math.max(0, Math.min(100, left))}%`;
+  const shown = state.displayLeft;
+  fill.style.width = `${Math.max(0, Math.min(100, shown))}%`;
   weekfill.style.width = `${Math.max(0, Math.min(100, state.weekLeft))}%`;
 
   const fable = state.fableLeft;
@@ -118,7 +167,9 @@ function render() {
 
   const crit = left <= 10;
   const warn = !crit && left <= 30;
-  fill.style.backgroundColor = crit ? "#e25a5a" : warn ? "#e0a83c" : "#5ecbba";
+  // fill color follows what the fill SHOWS (one poll behind); pill follows truth
+  fill.style.backgroundColor =
+    shown <= 10 ? "#e25a5a" : shown <= 30 ? "#e0a83c" : "#5ecbba";
   pill.classList.toggle("crit", crit);
   pill.classList.toggle("warn", warn);
   pill.classList.toggle("stale", state.failures >= MAX_FAILURES);
@@ -140,7 +191,14 @@ function render() {
   label.innerHTML = sessionTxt + fableTxt + weekTxt + refillTxt;
 }
 
+let demoRunning = false;
+let demoBuffer: string | null = null;
+
 function applyUsage(raw: string) {
+  if (demoRunning) {
+    demoBuffer = raw;
+    return;
+  }
   {
     const usage = JSON.parse(raw) as Usage;
     const limits = usage.limits ?? [];
@@ -179,15 +237,31 @@ function applyUsage(raw: string) {
     state.hasData = true;
     if (prevLeft !== null) {
       const now = state.sessionLeft;
-      if (now < prevLeft - 0.01) {
-        // burn since last poll: ghost lingers where the mana was
-        spawnSpan(sessionbar, "ghost", now, prevLeft - now, GHOST_TTL_MS);
-      } else if (now > prevLeft + 1) {
-        // window reset: gold sweep over the regained span + pill note
-        spawnSpan(sessionbar, "refill", prevLeft, now - prevLeft, REFILL_TTL_MS);
+      if (now > prevLeft + 1) {
+        // window reset: fill sweeps back up with shine + glow + gold + note
+        clearPending();
+        playRefill(sessionbar, fill);
+        spawnSpan(sessionbar, "refill", state.displayLeft, now - state.displayLeft, REFILL_TTL_MS);
+        state.displayLeft = now;
         state.refillAt = Date.now();
         state.refillAmt = now - prevLeft;
+      } else {
+        // two-phase drop: commit the previous pending (fill drains through
+        // its ghost), then open a new pending for this poll's drop
+        if (state.pending) commitPending();
+        if (now < state.displayLeft - 0.01) {
+          state.pendingEl = spawnSpan(
+            sessionbar,
+            "ghost pending",
+            now,
+            state.displayLeft - now,
+            0,
+          );
+          state.pending = { to: now };
+        }
       }
+    } else {
+      state.displayLeft = state.sessionLeft;
     }
     if (prevWeekEdge !== null) {
       // ghost/refill on the weekly strip's visible front edge (the binding meter)
@@ -195,6 +269,8 @@ function applyUsage(raw: string) {
       if (edge < prevWeekEdge - 0.01) {
         spawnSpan(bar, "ghost", edge, prevWeekEdge - edge, GHOST_TTL_MS);
       } else if (edge > prevWeekEdge + 1) {
+        // weekly reset: same fill-up choreography on the weekly strip
+        playRefill(bar, weekfill, fablefill);
         spawnSpan(bar, "refill", prevWeekEdge, edge - prevWeekEdge, REFILL_TTL_MS);
       }
     }
@@ -272,6 +348,92 @@ invoke<string>("get_hud_mode")
   .then(setHudMode)
   .catch(() => {});
 listen<string>("hud-mode", (e) => setHudMode(e.payload));
+
+// Scripted preview of every animation, played on the live bars, then the
+// real state is restored instantly. Compressed timeline: "polls" 2.6s apart.
+function sleep(ms: number) {
+  return new Promise((r) => setTimeout(r, ms));
+}
+
+async function runDemo() {
+  if (demoRunning || !state.hasData) return;
+  demoRunning = true;
+  const snap = {
+    sessionLeft: state.sessionLeft,
+    displayLeft: state.displayLeft,
+    weekLeft: state.weekLeft,
+    fableLeft: state.fableLeft,
+    refillAt: state.refillAt,
+    refillAmt: state.refillAmt,
+  };
+  clearPending();
+  state.sessionLeft = 74;
+  state.displayLeft = 74;
+  state.weekLeft = 83;
+  state.fableLeft = 69;
+  render();
+  await sleep(800);
+  // poll 1: drop detected. Numbers update, ghost marks the span, fill holds.
+  state.sessionLeft = 65;
+  state.pendingEl = spawnSpan(sessionbar, "ghost pending", 65, 9, 0);
+  state.pending = { to: 65 };
+  render();
+  await sleep(2600);
+  // poll 2: commit (fill drains through the ghost); a smaller drop pends.
+  commitPending();
+  state.sessionLeft = 61;
+  state.pendingEl = spawnSpan(sessionbar, "ghost pending", 61, 4, 0);
+  state.pending = { to: 61 };
+  render();
+  await sleep(2600);
+  // poll 3: commit the second drop.
+  commitPending();
+  render();
+  await sleep(2200);
+  // session refill: sweep up + shine + glow + gold + pill note.
+  clearPending();
+  playRefill(sessionbar, fill);
+  spawnSpan(sessionbar, "refill", state.displayLeft, 100 - state.displayLeft, REFILL_TTL_MS);
+  state.refillAt = Date.now();
+  state.refillAmt = 100 - state.sessionLeft;
+  state.sessionLeft = 100;
+  state.displayLeft = 100;
+  render();
+  await sleep(3000);
+  // weekly reset: both weekly fills sweep to full with the same choreography.
+  const edge = weekFront(state.weekLeft, state.fableLeft);
+  playRefill(bar, weekfill, fablefill);
+  spawnSpan(bar, "refill", edge, 100 - edge, REFILL_TTL_MS);
+  state.weekLeft = 100;
+  state.fableLeft = 100;
+  render();
+  await sleep(3200);
+  // restore reality with animations suppressed.
+  document.body.classList.add("noanim");
+  document.querySelectorAll(".ghost, .refill, .shine").forEach((el) => el.remove());
+  state.sessionLeft = snap.sessionLeft;
+  state.displayLeft = snap.displayLeft;
+  state.weekLeft = snap.weekLeft;
+  state.fableLeft = snap.fableLeft;
+  state.refillAt = snap.refillAt;
+  state.refillAmt = snap.refillAmt;
+  render();
+  await sleep(80);
+  document.body.classList.remove("noanim");
+  demoRunning = false;
+  if (demoBuffer) {
+    const buffered = demoBuffer;
+    demoBuffer = null;
+    applyUsage(buffered);
+  }
+}
+listen("demo", () => {
+  runDemo();
+});
+// harness/testing hook: same sequence without the tray
+window.addEventListener("manabar-demo", () => {
+  runDemo();
+});
 
 function setHudSize(size: string) {
   document.body.classList.remove("size-compact", "size-large");

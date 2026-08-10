@@ -454,6 +454,8 @@ pub fn run() {
                 true,
                 &[&size_compact, &size_standard, &size_large],
             )?;
+            let demo =
+                MenuItem::with_id(app, "demo", "Preview animations", true, None::<&str>)?;
             let quit = MenuItem::with_id(app, "quit", "Quit manabar", true, None::<&str>)?;
             let sep1 = PredefinedMenuItem::separator(app)?;
             let sep2 = PredefinedMenuItem::separator(app)?;
@@ -467,6 +469,7 @@ pub fn run() {
                     &sizes,
                     &labels,
                     &all_displays,
+                    &demo,
                     &sep2,
                     &quit,
                 ],
@@ -485,6 +488,9 @@ pub fn run() {
                 .show_menu_on_left_click(true)
                 .on_menu_event(move |app, event| match event.id.as_ref() {
                     "quit" => app.exit(0),
+                    "demo" => {
+                        let _ = app.emit("demo", ());
+                    }
                     id if id.starts_with("hud-") => {
                         let mode = id.trim_start_matches("hud-").to_string();
                         *HUD_MODE.lock().unwrap() = mode;

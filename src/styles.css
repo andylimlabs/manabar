@@ -115,7 +115,8 @@ body {
     background-color 0.4s ease;
 }
 
-/* Ghost: a poll-to-poll usage drop lingers where the mana was, then fades */
+/* Ghost: a detected drop marks the at-risk span (pending), holds until the
+   next poll commits it, then the fill drains through and the ghost fades */
 .ghost {
   position: absolute;
   top: 0;
@@ -126,10 +127,65 @@ body {
   z-index: 4;
 }
 
+.ghost.pending {
+  animation: none;
+  opacity: 0.5;
+}
+
+.ghost.fading {
+  animation: ghostfade 45s linear forwards;
+}
+
 @keyframes ghostfade {
   0% { opacity: 1; }
   65% { opacity: 0.5; }
   100% { opacity: 0; }
+}
+
+/* Commit: the fill drains slowly through the ghost span */
+#fill.draining {
+  transition-duration: 1.8s;
+  transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* Refill: the fill sweeps back up, a shine crosses it, the bar glows */
+#fill.refilling,
+#weekfill.refilling,
+#fablefill.refilling {
+  transition-duration: 1.4s;
+  transition-timing-function: cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.shine {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 120px;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.65), transparent);
+  animation: shinesweep 1.1s ease-out forwards;
+  pointer-events: none;
+  z-index: 6;
+}
+
+@keyframes shinesweep {
+  from { left: -140px; }
+  to { left: 100%; }
+}
+
+.glow {
+  animation: barglow 1.6s ease-out;
+}
+
+@keyframes barglow {
+  0% { filter: brightness(1); }
+  25% { filter: brightness(1.7) drop-shadow(0 0 6px rgba(240, 200, 110, 0.8)); }
+  100% { filter: brightness(1); }
+}
+
+/* Instant restore after the animation preview */
+body.noanim * {
+  transition: none !important;
+  animation: none !important;
 }
 
 /* Refill: gold sweep over the regained span when a window resets */

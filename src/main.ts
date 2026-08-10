@@ -60,6 +60,7 @@ type State = {
   failures: number;
   hasData: boolean;
   setupNeeded: boolean;
+  providerGap: "" | "setup" | "error"; // active provider absent from a good envelope
   refillAt: number | null;
   refillAmt: number;
 };
@@ -77,6 +78,7 @@ const state: State = {
   failures: 0,
   hasData: false,
   setupNeeded: false,
+  providerGap: "",
   refillAt: null,
   refillAmt: 0,
 };
@@ -161,11 +163,16 @@ function countdown(to: Date | null): string {
 
 function render() {
   if (!state.hasData) {
+    const providerName = provider === "codex" ? "Codex" : "Claude Code";
     label.textContent = state.setupNeeded
       ? "sign in to Claude Code or Codex to start"
-      : state.failures >= MAX_FAILURES
-        ? "usage unavailable"
-        : "syncing…";
+      : state.providerGap === "setup"
+        ? `sign in to ${providerName} to start`
+        : state.providerGap === "error"
+          ? `${providerName} usage unavailable`
+          : state.failures >= MAX_FAILURES
+            ? "usage unavailable"
+            : "syncing…";
     return;
   }
 
@@ -299,7 +306,21 @@ function applyUsage(raw: string) {
     m = mapClaude(usage, raw);
   }
   lastGoodRaw = raw;
-  if (m) {
+  if (!m) {
+    // active provider missing from an otherwise good envelope: say so,
+    // never render the other provider's numbers under this label
+    const err = String(
+      (isEnvelope &&
+        (provider === "codex" ? parsed.codex_error : parsed.claude_error)) ||
+        "",
+    );
+    state.hasData = false;
+    state.providerGap = err.startsWith("no-creds") ? "setup" : "error";
+    state.failures = 0;
+    render();
+    return;
+  }
+  {
     const prevLeft = state.hasData ? state.sessionLeft : null;
     const prevWeekEdge = state.hasData
       ? weekFront(state.weekLeft, state.fableLeft)
@@ -352,6 +373,7 @@ function applyUsage(raw: string) {
   }
   state.failures = 0;
   state.setupNeeded = false;
+  state.providerGap = "";
   state.hasData = true;
   render();
 }
@@ -526,6 +548,7 @@ function setProvider(p: string) {
   clearPending();
   document.querySelectorAll(".ghost, .refill, .shine").forEach((el) => el.remove());
   state.hasData = false;
+  state.providerGap = "";
   document.body.classList.add("noanim");
   if (lastGoodRaw) {
     try {

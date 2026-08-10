@@ -303,6 +303,10 @@ async fn fetch_usage(app: AppHandle) -> Result<String, String> {
 }
 
 struct StatusItem(tauri::menu::MenuItem<tauri::Wry>);
+struct ProvMenuItems {
+    claude: tauri::menu::CheckMenuItem<tauri::Wry>,
+    codex: tauri::menu::CheckMenuItem<tauri::Wry>,
+}
 
 /// Tray diagnostics: facts and hedged hints live here, never in the pill.
 fn update_status(app: &AppHandle, result: &Result<String, String>) {
@@ -332,6 +336,24 @@ fn update_status(app: &AppHandle, result: &Result<String, String>) {
     };
     if let Some(s) = app.try_state::<StatusItem>() {
         let _ = s.0.set_text(text);
+    }
+    // annotate the Provider entries so a signed-out choice is informed,
+    // not disabled
+    if let (Ok(body), Some(items)) = (result, app.try_state::<ProvMenuItems>()) {
+        let v: serde_json::Value = serde_json::from_str(body).unwrap_or_default();
+        let name = |base: &str, err: &str| {
+            if err.starts_with(NO_CREDS) {
+                format!("{base} (not signed in)")
+            } else {
+                base.to_string()
+            }
+        };
+        let _ = items
+            .claude
+            .set_text(name("Claude", v["claude_error"].as_str().unwrap_or("")));
+        let _ = items
+            .codex
+            .set_text(name("Codex", v["codex_error"].as_str().unwrap_or("")));
     }
 }
 
@@ -640,6 +662,10 @@ pub fn run() {
             )?;
             let providers =
                 Submenu::with_items(app, "Provider", true, &[&prov_claude, &prov_codex])?;
+            app.manage(ProvMenuItems {
+                claude: prov_claude.clone(),
+                codex: prov_codex.clone(),
+            });
             let demo =
                 MenuItem::with_id(app, "demo", "Preview animations", true, None::<&str>)?;
             let status = MenuItem::with_id(app, "status", "Status: starting…", false, None::<&str>)?;

@@ -207,3 +207,15 @@ body {
 #pill.stale {
   color: rgba(255, 255, 255, 0.4);
 }
+
+/* Label position setting (default: right) */
+#pill.pos-left {
+  right: auto;
+  left: 12px;
+}
+
+#pill.pos-center {
+  right: auto;
+  left: 50%;
+  transform: translateX(-50%);
+}

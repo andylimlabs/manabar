@@ -4,9 +4,9 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Mutex;
 use std::time::Duration;
 
-use tauri::menu::{CheckMenuItem, Menu, MenuItem};
+use tauri::menu::{CheckMenuItem, Menu, MenuItem, Submenu};
 use tauri::tray::TrayIconBuilder;
-use tauri::{AppHandle, LogicalPosition, LogicalSize, Manager, Monitor, WebviewUrl, WebviewWindowBuilder};
+use tauri::{AppHandle, Emitter, LogicalPosition, LogicalSize, Manager, Monitor, WebviewUrl, WebviewWindowBuilder};
 
 /// Window height in logical points: 8px weekly strip + 4px session bar,
 /// plus headroom for the floating readout pill.
@@ -19,6 +19,17 @@ static BARS_HIDDEN: AtomicBool = AtomicBool::new(false);
 /// Last successful usage payload; lets a late-joining bar catch up instantly
 /// instead of waiting for the primary window's next poll.
 static LAST_USAGE: Mutex<Option<String>> = Mutex::new(None);
+/// Readout pill placement: "left" | "center" | "right" (empty = right).
+static LABEL_POS: Mutex<String> = Mutex::new(String::new());
+
+fn label_pos() -> String {
+    let p = LABEL_POS.lock().unwrap().clone();
+    if p.is_empty() {
+        "right".into()
+    } else {
+        p
+    }
+}
 
 fn keychain_token() -> Result<String, String> {
     let out = Command::new("security")
@@ -98,6 +109,11 @@ fn cached_usage() -> Option<String> {
     LAST_USAGE.lock().unwrap().clone()
 }
 
+#[tauri::command]
+fn get_label_position() -> String {
+    label_pos()
+}
+
 fn settings_path(app: &AppHandle) -> Option<std::path::PathBuf> {
     app.path().app_config_dir().ok().map(|d| d.join("settings.json"))
 }
@@ -109,6 +125,11 @@ fn load_settings(app: &AppHandle) {
                 if let Some(b) = v["all_displays"].as_bool() {
                     ALL_DISPLAYS.store(b, Ordering::Relaxed);
                 }
+                if let Some(p) = v["label_position"].as_str() {
+                    if ["left", "center", "right"].contains(&p) {
+                        *LABEL_POS.lock().unwrap() = p.to_string();
+                    }
+                }
             }
         }
     }
@@ -119,7 +140,10 @@ fn save_settings(app: &AppHandle) {
         if let Some(dir) = path.parent() {
             let _ = std::fs::create_dir_all(dir);
         }
-        let v = serde_json::json!({ "all_displays": ALL_DISPLAYS.load(Ordering::Relaxed) });
+        let v = serde_json::json!({
+            "all_displays": ALL_DISPLAYS.load(Ordering::Relaxed),
+            "label_position": label_pos(),
+        });
         let _ = std::fs::write(path, v.to_string());
     }
 }
@@ -208,7 +232,11 @@ fn set_bars_hidden(app: &AppHandle, hidden: bool) {
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
-        .invoke_handler(tauri::generate_handler![fetch_usage, cached_usage])
+        .invoke_handler(tauri::generate_handler![
+            fetch_usage,
+            cached_usage,
+            get_label_position
+        ])
         .setup(|app| {
             #[cfg(target_os = "macos")]
             app.set_activation_policy(tauri::ActivationPolicy::Accessory);
@@ -240,10 +268,32 @@ pub fn run() {
                 ALL_DISPLAYS.load(Ordering::Relaxed),
                 None::<&str>,
             )?;
+            let cur = label_pos();
+            let lab_left =
+                CheckMenuItem::with_id(app, "label-left", "Left", true, cur == "left", None::<&str>)?;
+            let lab_center = CheckMenuItem::with_id(
+                app,
+                "label-center",
+                "Center",
+                true,
+                cur == "center",
+                None::<&str>,
+            )?;
+            let lab_right = CheckMenuItem::with_id(
+                app,
+                "label-right",
+                "Right",
+                true,
+                cur == "right",
+                None::<&str>,
+            )?;
+            let labels =
+                Submenu::with_items(app, "Label position", true, &[&lab_left, &lab_center, &lab_right])?;
             let quit = MenuItem::with_id(app, "quit", "Quit manabar", true, None::<&str>)?;
-            let menu = Menu::with_items(app, &[&toggle, &all_displays, &quit])?;
+            let menu = Menu::with_items(app, &[&toggle, &all_displays, &labels, &quit])?;
             let toggle_item = toggle.clone();
             let all_item = all_displays.clone();
+            let lab_items = [lab_left.clone(), lab_center.clone(), lab_right.clone()];
             TrayIconBuilder::new()
                 .icon(app.default_window_icon().expect("app icon").clone())
                 .menu(&menu)
@@ -261,6 +311,15 @@ pub fn run() {
                         let _ = all_item.set_checked(on);
                         save_settings(app);
                         reconcile(app);
+                    }
+                    id if id.starts_with("label-") => {
+                        let pos = id.trim_start_matches("label-").to_string();
+                        *LABEL_POS.lock().unwrap() = pos.clone();
+                        for item in &lab_items {
+                            let _ = item.set_checked(item.id().as_ref() == id);
+                        }
+                        save_settings(app);
+                        let _ = app.emit("label-pos", pos);
                     }
                     _ => {}
                 })

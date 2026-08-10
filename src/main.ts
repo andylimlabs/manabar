@@ -241,3 +241,13 @@ if (isMain) {
   setInterval(pullCache, 15_000);
 }
 setInterval(render, RENDER_MS);
+
+function setLabelPos(pos: string) {
+  if (!["left", "center", "right"].includes(pos)) pos = "right";
+  pill.classList.remove("pos-left", "pos-center", "pos-right");
+  pill.classList.add(`pos-${pos}`);
+}
+invoke<string>("get_label_position")
+  .then(setLabelPos)
+  .catch(() => {});
+listen<string>("label-pos", (e) => setLabelPos(e.payload));

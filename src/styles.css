@@ -208,6 +208,12 @@ body {
   color: rgba(255, 255, 255, 0.4);
 }
 
+/* Labels-only mode: numbers without the ambient strips */
+body.labels-only #bar,
+body.labels-only #sessionbar {
+  display: none;
+}
+
 /* Label position setting (default: right) */
 #pill.pos-left {
   right: auto;

@@ -16,6 +16,8 @@ const RECONCILE_SECS: u64 = 15;
 /// Show a bar on every display (tray-toggleable, persisted).
 static ALL_DISPLAYS: AtomicBool = AtomicBool::new(true);
 static BARS_HIDDEN: AtomicBool = AtomicBool::new(false);
+/// Labels-only mode: hide the meter strips, keep the readout pill.
+static LABELS_ONLY: AtomicBool = AtomicBool::new(false);
 /// Last successful usage payload; lets a late-joining bar catch up instantly
 /// instead of waiting for the primary window's next poll.
 static LAST_USAGE: Mutex<Option<String>> = Mutex::new(None);
@@ -114,6 +116,11 @@ fn get_label_position() -> String {
     label_pos()
 }
 
+#[tauri::command]
+fn get_labels_only() -> bool {
+    LABELS_ONLY.load(Ordering::Relaxed)
+}
+
 fn settings_path(app: &AppHandle) -> Option<std::path::PathBuf> {
     app.path().app_config_dir().ok().map(|d| d.join("settings.json"))
 }
@@ -130,6 +137,9 @@ fn load_settings(app: &AppHandle) {
                         *LABEL_POS.lock().unwrap() = p.to_string();
                     }
                 }
+                if let Some(b) = v["labels_only"].as_bool() {
+                    LABELS_ONLY.store(b, Ordering::Relaxed);
+                }
             }
         }
     }
@@ -143,6 +153,7 @@ fn save_settings(app: &AppHandle) {
         let v = serde_json::json!({
             "all_displays": ALL_DISPLAYS.load(Ordering::Relaxed),
             "label_position": label_pos(),
+            "labels_only": LABELS_ONLY.load(Ordering::Relaxed),
         });
         let _ = std::fs::write(path, v.to_string());
     }
@@ -235,7 +246,8 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             fetch_usage,
             cached_usage,
-            get_label_position
+            get_label_position,
+            get_labels_only
         ])
         .setup(|app| {
             #[cfg(target_os = "macos")]
@@ -289,11 +301,21 @@ pub fn run() {
             )?;
             let labels =
                 Submenu::with_items(app, "Label position", true, &[&lab_left, &lab_center, &lab_right])?;
+            let labels_only = CheckMenuItem::with_id(
+                app,
+                "labelsonly",
+                "Labels only",
+                true,
+                LABELS_ONLY.load(Ordering::Relaxed),
+                None::<&str>,
+            )?;
             let quit = MenuItem::with_id(app, "quit", "Quit manabar", true, None::<&str>)?;
-            let menu = Menu::with_items(app, &[&toggle, &all_displays, &labels, &quit])?;
+            let menu =
+                Menu::with_items(app, &[&toggle, &all_displays, &labels, &labels_only, &quit])?;
             let toggle_item = toggle.clone();
             let all_item = all_displays.clone();
             let lab_items = [lab_left.clone(), lab_center.clone(), lab_right.clone()];
+            let labels_only_item = labels_only.clone();
             TrayIconBuilder::new()
                 .icon(app.default_window_icon().expect("app icon").clone())
                 .menu(&menu)
@@ -311,6 +333,13 @@ pub fn run() {
                         let _ = all_item.set_checked(on);
                         save_settings(app);
                         reconcile(app);
+                    }
+                    "labelsonly" => {
+                        let on = !LABELS_ONLY.load(Ordering::Relaxed);
+                        LABELS_ONLY.store(on, Ordering::Relaxed);
+                        let _ = labels_only_item.set_checked(on);
+                        save_settings(app);
+                        let _ = app.emit("labels-only", on);
                     }
                     id if id.starts_with("label-") => {
                         let pos = id.trim_start_matches("label-").to_string();

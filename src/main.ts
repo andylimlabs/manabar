@@ -251,3 +251,11 @@ invoke<string>("get_label_position")
   .then(setLabelPos)
   .catch(() => {});
 listen<string>("label-pos", (e) => setLabelPos(e.payload));
+
+function setLabelsOnly(on: boolean) {
+  document.body.classList.toggle("labels-only", on === true);
+}
+invoke<boolean>("get_labels_only")
+  .then(setLabelsOnly)
+  .catch(() => {});
+listen<boolean>("labels-only", (e) => setLabelsOnly(e.payload));

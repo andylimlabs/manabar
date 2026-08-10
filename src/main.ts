@@ -222,12 +222,16 @@ function render() {
   pill.classList.toggle("warn", warn);
   pill.classList.toggle("stale", state.failures >= MAX_FAILURES);
 
-  const manaStyle =
-    state.manaKind === "week" ? ` style="color:${COLOR_WEEK_TEXT}"` : "";
+  // mana is reserved for session-based limits; a weekly pool in the mana
+  // slot speaks weekly language (name, verb, indigo)
+  const isWeekKind = state.manaKind === "week";
+  const kindLabel = isWeekKind ? "week" : "mana";
+  const kindVerb = isWeekKind ? "resets in" : "refills in";
+  const manaStyle = isWeekKind ? ` style="color:${COLOR_WEEK_TEXT}"` : "";
   const sessionTxt =
     left <= 0
-      ? `<span class="session"${manaStyle}>mana tapped</span> <span class="dim">· refills in ${countdown(state.sessionReset)}</span>`
-      : `<span class="session"${manaStyle}>${Math.round(left)}% mana left</span> <span class="dim">· refills in ${countdown(state.sessionReset)}</span>`;
+      ? `<span class="session"${manaStyle}>${kindLabel} tapped</span> <span class="dim">· ${kindVerb} ${countdown(state.sessionReset)}</span>`
+      : `<span class="session"${manaStyle}>${Math.round(left)}% ${kindLabel} left</span> <span class="dim">· ${kindVerb} ${countdown(state.sessionReset)}</span>`;
   const div = `<span class="divider"></span>`;
   const stripTxt = state.strip
     .map(
@@ -237,7 +241,7 @@ function render() {
     .join("");
   const refillTxt =
     state.refillAt && Date.now() - state.refillAt < REFILL_NOTE_MS
-      ? ` <span class="gold">+${Math.round(state.refillAmt)}% mana refilled</span>`
+      ? ` <span class="gold">+${Math.round(state.refillAmt)}% ${state.manaKind === "week" ? "week" : "mana"} refilled</span>`
       : "";
   label.innerHTML = sessionTxt + stripTxt + refillTxt;
   document.body.classList.toggle("single-meter", state.strip.length === 0);
@@ -278,7 +282,17 @@ function mapClaude(usage: Usage, raw: string): Meters {
   }
   const weekAll = weeklies.find((l) => l.kind === "weekly_all");
   const scoped = weeklies.filter((l) => l.kind === "weekly_scoped");
+  // registry order = pill order: binding scoped meter first, then week
   const strip: StripMeter[] = [];
+  if (scoped[0]) {
+    strip.push({
+      key: "scoped",
+      label: (scoped[0].scope?.model?.display_name ?? "scoped").toLowerCase(),
+      left: 100 - scoped[0].percent,
+      color: COLOR_SCOPED,
+      textColor: COLOR_SCOPED_TEXT,
+    });
+  }
   if (weekAll || usage.seven_day) {
     strip.push({
       key: "week",
@@ -288,15 +302,6 @@ function mapClaude(usage: Usage, raw: string): Meters {
         : 100 - (usage.seven_day?.utilization ?? 0),
       color: COLOR_WEEK,
       textColor: COLOR_WEEK_TEXT,
-    });
-  }
-  if (scoped[0]) {
-    strip.push({
-      key: "scoped",
-      label: (scoped[0].scope?.model?.display_name ?? "scoped").toLowerCase(),
-      left: 100 - scoped[0].percent,
-      color: COLOR_SCOPED,
-      textColor: COLOR_SCOPED_TEXT,
     });
   }
   // expandable, not dynamic: surface unknowns for a deliberate registry

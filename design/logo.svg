@@ -1,0 +1,28 @@
+<svg width="1024" height="1024" viewBox="0 0 1024 1024" xmlns="http://www.w3.org/2000/svg">
+  <!-- manabar: round mana flask. teal liquid (session mana), indigo glass (week), orange cork (fable). -->
+  <rect x="64" y="64" width="896" height="896" rx="200" fill="#14151b"/>
+
+  <defs>
+    <clipPath id="flask">
+      <path d="M 462 196 L 462 284 A 300 300 0 1 0 562 284 L 562 196 Z"/>
+    </clipPath>
+  </defs>
+
+  <!-- glass body -->
+  <path d="M 462 196 L 462 284 A 300 300 0 1 0 562 284 L 562 196 Z"
+        fill="#101117" stroke="#98a2ff" stroke-width="34" stroke-linejoin="round"/>
+
+  <!-- liquid with a gentle wave surface -->
+  <g clip-path="url(#flask)">
+    <path d="M 180 622 Q 350 572 512 610 Q 674 648 844 604 L 844 900 L 180 900 Z" fill="#5ecbba"/>
+    <ellipse cx="404" cy="452" rx="86" ry="50" fill="#ffffff" opacity="0.14" transform="rotate(-24 404 452)"/>
+  </g>
+
+  <!-- re-stroke over liquid edge -->
+  <path d="M 462 196 L 462 284 A 300 300 0 1 0 562 284 L 562 196 Z"
+        fill="none" stroke="#98a2ff" stroke-width="34" stroke-linejoin="round"/>
+
+  <!-- lip + cork -->
+  <rect x="426" y="152" width="172" height="58" rx="26" fill="#98a2ff"/>
+  <rect x="452" y="82" width="120" height="84" rx="26" fill="#d97757"/>
+</svg>

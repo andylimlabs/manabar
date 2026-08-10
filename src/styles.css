@@ -1,0 +1,209 @@
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+html,
+body {
+  width: 100%;
+  height: 100%;
+  background: transparent;
+  overflow: hidden;
+  font-family: -apple-system, "SF Pro Text", sans-serif;
+  user-select: none;
+  cursor: default;
+}
+
+/* Main strip: the WEEK. Both weekly meters share it: all-models (teal) and
+   fable (orange) overlap; whichever is LOWER gets .front, the taller one
+   peeks out behind. 14 bubbles = one per half-day. */
+#bar {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 8px;
+  background: rgba(10, 10, 14, 0.55);
+}
+
+#weekfill {
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 0%;
+  background: #6e7bf2;
+  z-index: 2;
+  transition: width 0.6s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+#fablefill {
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 0%;
+  background: #d97757;
+  z-index: 1;
+  transition: width 0.6s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+#bar .front {
+  z-index: 3;
+}
+
+/* 14 segment ticks (Andy's call: 7 days x 2 half-days). Purely aesthetic:
+   fills move by usage %, never snap to ticks. */
+#ticks {
+  position: absolute;
+  inset: 0;
+  background: repeating-linear-gradient(
+    90deg,
+    transparent 0,
+    transparent calc(100% / 14 - 1px),
+    rgba(0, 0, 0, 0.5) calc(100% / 14 - 1px),
+    rgba(0, 0, 0, 0.5) calc(100% / 14)
+  );
+  pointer-events: none;
+  z-index: 5;
+}
+
+/* Session (mana) bar: the fast loop, rides above the weekly strip */
+#sessionbar {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 8px;
+  height: 4px;
+  background: rgba(10, 10, 14, 0.4);
+  border-top: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+#fill {
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 0%;
+  background: #5ecbba;
+  z-index: 1;
+  transition:
+    width 0.6s cubic-bezier(0.22, 1, 0.36, 1),
+    background-color 0.4s ease;
+}
+
+/* Ghost: a poll-to-poll usage drop lingers where the mana was, then fades */
+.ghost {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  background: rgba(222, 226, 255, 0.35);
+  animation: ghostfade linear forwards;
+  pointer-events: none;
+  z-index: 4;
+}
+
+@keyframes ghostfade {
+  0% { opacity: 1; }
+  65% { opacity: 0.5; }
+  100% { opacity: 0; }
+}
+
+/* Refill: gold sweep over the regained span when a window resets */
+.refill {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  background: rgba(240, 200, 110, 0.75);
+  animation: refillfade ease-out forwards;
+  pointer-events: none;
+  z-index: 4;
+}
+
+@keyframes refillfade {
+  0% { opacity: 0.95; }
+  100% { opacity: 0; }
+}
+
+/* Readout pill, bottom right */
+#pill {
+  position: fixed;
+  right: 12px;
+  bottom: 15px;
+  background: rgba(14, 14, 18, 0.82);
+  border: 1px solid rgba(255, 255, 255, 0.09);
+  border-radius: 6px;
+  padding: 3px 9px;
+  font-size: 11px;
+  line-height: 1.35;
+  color: rgba(255, 255, 255, 0.85);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.01em;
+  box-shadow: 0 1px 6px rgba(0, 0, 0, 0.35);
+  white-space: nowrap;
+}
+
+#pill .dim {
+  color: rgba(255, 255, 255, 0.45);
+}
+
+/* HUD grammar: meters separate spatially (hairline dividers), not with punctuation */
+#pill .divider {
+  display: inline-block;
+  width: 1px;
+  height: 10px;
+  background: rgba(255, 255, 255, 0.18);
+  margin: 0 8px;
+  vertical-align: -1px;
+}
+
+/* swatch = the meter's icon: a miniature of its bar fill */
+#pill .swatch {
+  display: inline-block;
+  width: 8px;
+  height: 3px;
+  border-radius: 1.5px;
+  margin-right: 5px;
+  vertical-align: 2px;
+}
+
+#pill .sw-fable {
+  background: #d97757;
+}
+
+#pill .sw-week {
+  background: #6e7bf2;
+}
+
+#pill .session {
+  color: #7dd6c6;
+  font-weight: 600;
+}
+
+#pill .week {
+  color: #98a2ff;
+  font-weight: 600;
+}
+
+#pill .fable {
+  color: #e39068;
+  font-weight: 600;
+}
+
+#pill .gold {
+  color: #f0c86e;
+  font-weight: 650;
+}
+
+#pill.warn .session {
+  color: #f2c078;
+}
+
+#pill.crit .session {
+  color: #f27e7e;
+}
+
+#pill.stale {
+  color: rgba(255, 255, 255, 0.4);
+}

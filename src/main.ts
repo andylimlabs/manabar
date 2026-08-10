@@ -270,6 +270,18 @@ type Meters = {
   strip: StripMeter[];
 };
 
+// The ONLY API-derived string that reaches innerHTML. Strict allowlist:
+// anything outside it is dropped, so markup can never ride in on a
+// model display name (from the network or a tampered disk cache).
+function sanitizeLabel(s: string): string {
+  const clean = s
+    .toLowerCase()
+    .replace(/[^a-z0-9 _.-]/g, "")
+    .trim()
+    .slice(0, 24);
+  return clean || "scoped";
+}
+
 // Meter colors, curated. Add a color when adding a registry entry.
 const COLOR_WEEK = "#6e7bf2";
 const COLOR_WEEK_TEXT = "#98a2ff";
@@ -293,7 +305,7 @@ function mapClaude(usage: Usage, raw: string): Meters {
   if (scoped[0]) {
     strip.push({
       key: "scoped",
-      label: (scoped[0].scope?.model?.display_name ?? "scoped").toLowerCase(),
+      label: sanitizeLabel(scoped[0].scope?.model?.display_name ?? "scoped"),
       left: 100 - scoped[0].percent,
       color: COLOR_SCOPED,
       textColor: COLOR_SCOPED_TEXT,

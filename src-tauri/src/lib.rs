@@ -74,7 +74,7 @@ fn label_pos() -> String {
 }
 
 fn keychain_token() -> Result<String, String> {
-    let out = Command::new("security")
+    let out = Command::new("/usr/bin/security")
         .args(["find-generic-password", "-s", "Claude Code-credentials", "-w"])
         .output()
         .map_err(|e| format!("security spawn: {e}"))?;
@@ -91,7 +91,7 @@ fn keychain_token() -> Result<String, String> {
 
 fn query_usage(token: &str) -> Result<String, String> {
     // Token goes to curl over stdin (-H @-) so it never appears in argv.
-    let mut child = Command::new("curl")
+    let mut child = Command::new("/usr/bin/curl")
         .args([
             "-s",
             "-m",
@@ -155,7 +155,7 @@ fn read_codex_auth() -> Result<(String, String), String> {
 fn query_codex(token: &str, account_id: &str) -> Result<String, String> {
     // Both headers over stdin (-H @- reads one header per line): the token
     // never appears in argv.
-    let mut child = Command::new("curl")
+    let mut child = Command::new("/usr/bin/curl")
         .args([
             "-s",
             "-m",

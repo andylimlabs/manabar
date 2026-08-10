@@ -267,8 +267,33 @@ async fn fetch_usage(app: AppHandle) -> Result<String, String> {
                 };
                 let err_of =
                     |r: &Result<String, String>| r.as_ref().err().cloned().unwrap_or_default();
+                // Data minimization: only the fields the HUD renders survive
+                // this boundary. Codex PII (email, user/account ids) never
+                // reaches the cache, the disk, or a webview.
+                let project_claude = |v: serde_json::Value| {
+                    if v.is_null() {
+                        v
+                    } else {
+                        serde_json::json!({
+                            "five_hour": v["five_hour"],
+                            "seven_day": v["seven_day"],
+                            "limits": v["limits"],
+                        })
+                    }
+                };
+                let project_codex = |v: serde_json::Value| {
+                    if v.is_null() {
+                        v
+                    } else {
+                        serde_json::json!({
+                            "plan_type": v["plan_type"],
+                            "rate_limit": v["rate_limit"],
+                        })
+                    }
+                };
                 // Per-provider merge: one provider failing must not evict the
-                // other's (or its own) last good data from the cache.
+                // other's (or its own) last good data from the cache. Project
+                // AFTER the merge so pre-minimization cache entries launder out.
                 let prev: serde_json::Value = LAST_USAGE
                     .lock()
                     .unwrap()
@@ -283,8 +308,8 @@ async fn fetch_usage(app: AppHandle) -> Result<String, String> {
                     }
                 };
                 Ok(serde_json::json!({
-                    "claude": keep(parse(&claude), "claude"),
-                    "codex": keep(parse(&codex), "codex"),
+                    "claude": project_claude(keep(parse(&claude), "claude")),
+                    "codex": project_codex(keep(parse(&codex), "codex")),
                     "claude_error": err_of(&claude),
                     "codex_error": err_of(&codex),
                 })

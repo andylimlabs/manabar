@@ -1,0 +1,34 @@
+# Release checklist
+
+Run every item before publishing a build. No skips.
+
+## Audits
+
+- [ ] `npm audit --omit=dev` reports 0 vulnerabilities
+- [ ] `cargo audit` (from `src-tauri/`) reports no advisories, or each advisory is reviewed and noted here
+- [ ] `npx tsc --noEmit` clean
+- [ ] `cargo clippy --all-targets` clean
+
+## Build
+
+- [ ] `npm run tauri build` succeeds
+- [ ] Launch the bundled .app (not the dev build) and verify: bars render, pill shows live data, tray menu works, Preview animations runs
+- [ ] Verify the production CSP did not break the webview (bars blank = CSP problem; check the webview console)
+
+## Signing
+
+- [ ] Developer ID signing configured, hardened runtime enabled
+- [ ] `spctl -a -vv` accepts the app
+- [ ] Notarization submitted and stapled (`xcrun notarytool`, `xcrun stapler`)
+
+## Distribution
+
+- [ ] DMG uploaded to the public releases repo
+- [ ] Release notes written (plain language, no internal codenames)
+- [ ] Site download link points at the new release
+- [ ] README install instructions still accurate
+
+## Privacy facts (keep true, disclose if they change)
+
+- Credentials are read from the user's own keychain / `~/.codex/auth.json` and sent only to the provider's own API over TLS. Never stored, never sent anywhere else.
+- The disk cache (`last_usage.json`) contains meter percentages and reset times only. The Rust boundary strips everything else (including Codex account fields) before data reaches the cache or webviews.

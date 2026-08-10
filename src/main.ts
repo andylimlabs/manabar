@@ -1,5 +1,5 @@
 import { invoke } from "@tauri-apps/api/core";
-import { emit, listen } from "@tauri-apps/api/event";
+import { listen } from "@tauri-apps/api/event";
 import { getCurrentWebviewWindow } from "@tauri-apps/api/webviewWindow";
 
 // Only the primary window polls (the endpoint rate-limits); secondary bars
@@ -479,7 +479,6 @@ async function refresh() {
   try {
     const raw = await invoke<string>("fetch_usage");
     applyUsage(raw);
-    emit("usage-raw", raw);
   } catch (e) {
     state.failures += 1;
     state.setupNeeded = String(e).includes("no-providers");
@@ -507,25 +506,24 @@ if (isMain) {
     .catch(() => {});
   refresh();
 } else {
-  // Broadcasts give instant updates; the cache poll (local, no network) covers
-  // missed broadcasts and late joins so every bar stays in sync.
+  // Secondaries read ONLY the authoritative Rust cache (local, no network,
+  // no spoofable window-to-window events). 5s poll = imperceptible lag on
+  // 60s data.
   let lastApplied = "";
-  const apply = (raw: string) => {
-    if (raw === lastApplied) return;
-    lastApplied = raw;
-    try {
-      applyUsage(raw);
-    } catch (err) {
-      console.error("apply failed:", err);
-    }
-  };
-  listen<string>("usage-raw", (e) => apply(e.payload));
   const pullCache = () =>
     invoke<string | null>("cached_usage")
-      .then((raw) => raw && apply(raw))
+      .then((raw) => {
+        if (!raw || raw === lastApplied) return;
+        lastApplied = raw;
+        try {
+          applyUsage(raw);
+        } catch (err) {
+          console.error("apply failed:", err);
+        }
+      })
       .catch(() => {});
   pullCache();
-  setInterval(pullCache, 15_000);
+  setInterval(pullCache, 5_000);
 }
 setInterval(render, RENDER_MS);
 

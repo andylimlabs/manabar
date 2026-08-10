@@ -95,8 +95,9 @@ function spawnSpan(
 const GHOST_FADE_MS = 45_000;
 
 // A pending drop commits on the NEXT poll: the fill drains through the
-// ghost span, and the ghost starts its fade.
-function commitPending() {
+// ghost span, and the ghost starts its fade. The preview passes a short
+// fade so the disappearance is actually watchable.
+function commitPending(fadeMs: number = GHOST_FADE_MS) {
   if (!state.pending) return;
   state.displayLeft = state.pending.to;
   fill.classList.add("draining");
@@ -104,7 +105,8 @@ function commitPending() {
   if (state.pendingEl) {
     const el = state.pendingEl;
     el.className = "ghost fading";
-    setTimeout(() => el.remove(), GHOST_FADE_MS + 200);
+    el.style.animationDuration = `${fadeMs}ms`;
+    setTimeout(() => el.remove(), fadeMs + 200);
   }
   state.pending = null;
   state.pendingEl = null;
@@ -379,35 +381,38 @@ async function runDemo() {
   state.pending = { to: 65 };
   render();
   await sleep(2600);
-  // poll 2: commit (fill drains through the ghost); a smaller drop pends.
-  commitPending();
+  // poll 2: commit (fill drains through the ghost, ghost fades visibly);
+  // a smaller drop pends.
+  commitPending(1500);
   state.sessionLeft = 61;
   state.pendingEl = spawnSpan(sessionbar, "ghost pending", 61, 4, 0);
   state.pending = { to: 61 };
   render();
   await sleep(2600);
-  // poll 3: commit the second drop.
-  commitPending();
+  // poll 3: commit the second drop, then let the ghosts finish vanishing
+  // so the bar is visibly clean before the refill.
+  commitPending(1500);
   render();
-  await sleep(2200);
-  // session refill: sweep up + shine + glow + gold + pill note.
+  await sleep(3400);
+  // session refill: sweep up + shine + glow + short gold, then HOLD the
+  // settled bar in its original color before moving on.
   clearPending();
   playRefill(sessionbar, fill);
-  spawnSpan(sessionbar, "refill", state.displayLeft, 100 - state.displayLeft, REFILL_TTL_MS);
+  spawnSpan(sessionbar, "refill", state.displayLeft, 100 - state.displayLeft, 2000);
   state.refillAt = Date.now();
   state.refillAmt = 100 - state.sessionLeft;
   state.sessionLeft = 100;
   state.displayLeft = 100;
   render();
-  await sleep(3000);
-  // weekly reset: both weekly fills sweep to full with the same choreography.
+  await sleep(4600);
+  // weekly reset: same choreography, same settled hold after.
   const edge = weekFront(state.weekLeft, state.fableLeft);
   playRefill(bar, weekfill, fablefill);
-  spawnSpan(bar, "refill", edge, 100 - edge, REFILL_TTL_MS);
+  spawnSpan(bar, "refill", edge, 100 - edge, 2000);
   state.weekLeft = 100;
   state.fableLeft = 100;
   render();
-  await sleep(3200);
+  await sleep(4600);
   // restore reality with animations suppressed.
   document.body.classList.add("noanim");
   document.querySelectorAll(".ghost, .refill, .shine").forEach((el) => el.remove());

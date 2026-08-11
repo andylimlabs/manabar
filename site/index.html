@@ -184,6 +184,40 @@
     margin-top: 10px;
   }
 
+  /* hero animation: deplete twice with ghosts, then the gold refill */
+  @keyframes hero-fill {
+    0%, 14% { width: 92%; } 16%, 38% { width: 74%; }
+    40%, 58% { width: 61%; } 60%, 74% { width: 47%; }
+    77%, 100% { width: 92%; }
+  }
+  .demo .fill.anim { animation: hero-fill 16s linear infinite; }
+  .aghost { position: absolute; top: 0; bottom: 0; background: rgba(222,226,255,0.4); opacity: 0; }
+  .g1 { left: 74%; width: 18%; animation: ghost1 16s linear infinite; }
+  .g2 { left: 61%; width: 13%; animation: ghost2 16s linear infinite; }
+  .g3 { left: 47%; width: 14%; animation: ghost3 16s linear infinite; }
+  @keyframes ghost1 { 0%, 15% { opacity: 0; } 17% { opacity: 1; } 40% { opacity: 0.35; } 60%, 100% { opacity: 0; } }
+  @keyframes ghost2 { 0%, 39% { opacity: 0; } 41% { opacity: 1; } 62% { opacity: 0.35; } 75%, 100% { opacity: 0; } }
+  @keyframes ghost3 { 0%, 59% { opacity: 0; } 61% { opacity: 1; } 74% { opacity: 0.5; } 76%, 100% { opacity: 0; } }
+  .agold { position: absolute; top: 0; bottom: 0; left: 47%; width: 45%; background: rgba(240,200,110,0.75); opacity: 0; animation: goldflash 16s linear infinite; }
+  @keyframes goldflash { 0%, 75% { opacity: 0; } 77% { opacity: 0.95; } 88%, 100% { opacity: 0; } }
+  .ashine { position: absolute; top: 0; bottom: 0; width: 90px; left: -100px; background: linear-gradient(90deg, transparent, rgba(255,255,255,0.65), transparent); opacity: 0; animation: shinerun 16s linear infinite; }
+  @keyframes shinerun { 0%, 75% { left: -100px; opacity: 0; } 76% { opacity: 1; } 82% { left: 100%; opacity: 1; } 83%, 100% { left: 100%; opacity: 0; } }
+  .pv-wrap { position: relative; display: inline-block; width: 34px; height: 1em; vertical-align: baseline; }
+  .pv { position: absolute; left: 0; top: 0; opacity: 0; }
+  .pv1 { animation: pv1 16s linear infinite; }
+  .pv2 { animation: pv2 16s linear infinite; }
+  .pv3 { animation: pv3 16s linear infinite; }
+  .pv4 { animation: pv4 16s linear infinite; }
+  @keyframes pv1 { 0%, 15% { opacity: 1; } 16%, 76% { opacity: 0; } 77%, 100% { opacity: 1; } }
+  @keyframes pv2 { 0%, 15% { opacity: 0; } 16%, 39% { opacity: 1; } 40%, 100% { opacity: 0; } }
+  @keyframes pv3 { 0%, 39% { opacity: 0; } 40%, 59% { opacity: 1; } 60%, 100% { opacity: 0; } }
+  @keyframes pv4 { 0%, 59% { opacity: 0; } 60%, 76% { opacity: 1; } 77%, 100% { opacity: 0; } }
+  .gnote { opacity: 0; animation: gnote 16s linear infinite; }
+  @keyframes gnote { 0%, 76% { opacity: 0; } 78%, 94% { opacity: 1; } 97%, 100% { opacity: 0; } }
+
+  .gamer .gdemo { height: 120px; margin-top: 0; }
+  .gamer .gdemo .fill { width: 74%; }
+
   .status {
     margin: 72px auto 0;
     text-align: center;
@@ -210,12 +244,12 @@
     <header>
       <img class="flask" src="/icon.png" alt="manabar crystal logo" width="88" height="88" />
       <h1>A <span class="mana">mana bar</span> for your agent stamina</h1>
-      <p class="sub">manabar pins a thin, click-through meter to the bottom of your screen. Whatever tool you're working in, your agent stamina stays in view: how much you have left, and how fast the work is spending it.</p>
+      <p class="sub">manabar pins a thin, click-through meter to the bottom of your screen. Whatever tool you're working in, your agent stamina stays in view.</p>
     </header>
 
-    <div class="demo" role="img" aria-label="A desktop with the manabar overlay at its bottom edge">
-      <div class="pill"><span class="sw" style="background:var(--teal)"></span><span class="d">session</span> <span class="s">74%</span> <span class="d">· refills in 3h 53m</span><span class="sep"></span><span class="sw" style="background:var(--orange)"></span><span class="d">fable</span> <span class="f">69%</span><span class="sep"></span><span class="sw" style="background:var(--indigo)"></span><span class="d">week</span> <span class="w">83%</span></div>
-      <div class="sessionbar"><div class="fill"></div><div class="ghost"></div></div>
+    <div class="demo" role="img" aria-label="The manabar overlay depleting as work runs, then refilling">
+      <div class="pill"><span class="sw" style="background:var(--teal)"></span><span class="d">session</span> <span class="pv-wrap"><span class="s pv pv1">92%</span><span class="s pv pv2">74%</span><span class="s pv pv3">61%</span><span class="s pv pv4">47%</span></span> <span class="d">· refills in 3h 53m</span><span class="sep"></span><span class="sw" style="background:var(--orange)"></span><span class="d">fable</span> <span class="f">69%</span><span class="sep"></span><span class="sw" style="background:var(--indigo)"></span><span class="d">week</span> <span class="w">83%</span><span class="gold gnote">&nbsp;+45% session refilled</span></div>
+      <div class="sessionbar"><div class="fill anim"></div><div class="aghost g1"></div><div class="aghost g2"></div><div class="aghost g3"></div><div class="agold"></div><div class="ashine"></div></div>
       <div class="weekbar"><div class="wf"></div><div class="ff"></div><div class="ticks"></div></div>
     </div>
 
@@ -262,7 +296,11 @@
     </div>
 
     <div class="gamer">
-      <div class="pill gpill"><span class="s">74% mana left</span> <span class="d">· refills in 3h 53m</span></div>
+      <div class="demo gdemo" role="img" aria-label="manabar in gamer mode: the same bars with mana vocabulary">
+        <div class="pill"><span class="s">74% mana left</span> <span class="d">· refills in 3h 53m</span><span class="sep"></span><span class="sw" style="background:var(--orange)"></span><span class="d">fable</span> <span class="f">69%</span><span class="sep"></span><span class="sw" style="background:var(--indigo)"></span><span class="d">week</span> <span class="w">83%</span></div>
+        <div class="sessionbar"><div class="fill"></div></div>
+        <div class="weekbar"><div class="wf"></div><div class="ff"></div><div class="ticks"></div></div>
+      </div>
       <p>Miss the flavor? Gamer mode brings the mana back, one toggle in the tray.</p>
     </div>
 

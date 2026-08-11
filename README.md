@@ -32,6 +32,15 @@ npm run tauri dev     # development, vite on port 1440
 npm run tauri build   # release bundle
 ```
 
+## Non-goals
+
+Settled decisions, so requests for these will be closed with a link here:
+
+- No telemetry, analytics, or accounts in the app, ever
+- No cloud sync of anything, least of all credentials
+- No multi-provider dashboard: the HUD renders one provider at a time
+- No polling faster than 60 seconds (the usage endpoints rate-limit)
+
 ## Requests and issues
 
 Want another bar style, meter presentation, or provider? Post it in [Discussions → Ideas](https://github.com/andylimlabs/manabar/discussions/categories/ideas) and upvote what you want built; the most-voted presentations get made. Bugs go to [issues](https://github.com/andylimlabs/manabar/issues). Providers and presentation vocabularies are deliberately easy to add: see the provider mappers and the lexicon pivot in [`src/main.ts`](src/main.ts).

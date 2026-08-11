@@ -1,9 +1,10 @@
 [package]
 name = "manabar"
 version = "0.1.0"
-description = "manabar: an MMO-style mana bar for your Claude token limits"
-authors = ["Pockadot LLC"]
+description = "manabar: an MMO-style mana bar for your agent stamina"
+authors = ["Andy Lim"]
 edition = "2021"
+license = "MIT"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 

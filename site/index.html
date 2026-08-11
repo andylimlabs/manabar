@@ -314,6 +314,14 @@
       <p class="fineprint"><a href="https://github.com/andylimlabs/manabar/releases">All releases</a> · <a href="https://github.com/andylimlabs/manabar">Source on GitHub</a></p>
     </div>
 
+    <script>
+      // count Download clicks as a first-class event (.dmg isn't in GA4's
+      // auto file-download list, and outbound clicks lump in repo links)
+      document.querySelector(".dl").addEventListener("click", function () {
+        if (window.__mbGA) gtag("event", "download_click", { file: "manabar.dmg" });
+      });
+    </script>
+
     <footer>
       Made by Andy Lim. Not affiliated with Anthropic or OpenAI.<br />
       Bug reports and ideas: <a href="https://github.com/andylimlabs/manabar/issues">github.com/andylimlabs/manabar</a> · <a href="/privacy.html">Privacy</a>

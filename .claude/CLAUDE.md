@@ -4,7 +4,7 @@ MMO-style mana bar overlay for Claude token limits. Owned by staff-engineer-mira
 
 ## Vocabulary (Andy's, use exactly)
 
-- **Mana = session-based limits ONLY.** Pill says "74% mana left", "mana tapped", "refills in". A provider with no session window (codex Plus) has NO mana bar: its weekly renders in the weekly strip (indigo, ticks), pill "week 88% · resets in 5d 9h". Never borrow the mana slot for a weekly pool.
+- **"mana" is RETIRED from all UI labels (Andy, 2026-08-10: "dropping the fun part, gave it a lot of thought").** The session meter reads like every other meter: swatch + label + value: "▮ session 74% · refills in 3h 53m", tapped = "▮ session tapped". "mana"/"manabar" survive ONLY as the product name and internal code names (mana slot, etc). A provider with no session window (codex Plus) has no session bar: its weekly renders in the weekly strip, pill "▮ week 88% · resets in 5d 9h". Never borrow the session slot for a weekly pool.
 - Fable = the per-model weekly cap (orange #d97757). Week = all-models weekly (indigo #6e7bf2). Mana bar is teal #5ecbba. Pill order: mana, then scoped (fable), then week.
 - Bubbles/segments (14 = 7 days x 2) are AESTHETIC ONLY. Fills move by continuous usage percent, never snap to ticks.
 - **One provider per HUD** (tray Provider submenu, Claude is the default). Never a multi-sub dashboard.

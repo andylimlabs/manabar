@@ -227,9 +227,7 @@ function render() {
   const sessionTxt =
     left === null
       ? ""
-      : left <= 0
-        ? `<span class="session">mana tapped</span> <span class="dim">· refills in ${countdown(state.sessionReset)}</span>`
-        : `<span class="session">${Math.round(left)}% mana left</span> <span class="dim">· refills in ${countdown(state.sessionReset)}</span>`;
+      : `<span class="swatch" style="background:#5ecbba"></span><span class="dim">session</span> <span class="session">${left <= 0 ? "tapped" : `${Math.round(left)}%`}</span> <span class="dim">· refills in ${countdown(state.sessionReset)}</span>`;
   // pill grammar: the hairline divider separates timescale GROUPS (session
   // vs weekly); dots punctuate within a group, ending with the group reset
   const div = `<span class="divider"></span>`;
@@ -250,7 +248,7 @@ function render() {
   }
   const refillTxt =
     state.refillAt && Date.now() - state.refillAt < REFILL_NOTE_MS
-      ? ` <span class="gold">+${Math.round(state.refillAmt)}% ${left === null ? "week" : "mana"} refilled</span>`
+      ? ` <span class="gold">+${Math.round(state.refillAmt)}% ${left === null ? "week" : "session"} refilled</span>`
       : "";
   label.innerHTML = sessionTxt + stripTxt + refillTxt;
   document.body.classList.toggle("single-meter", state.strip.length === 0);

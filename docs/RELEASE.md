@@ -1,5 +1,12 @@
 # Release checklist
 
+> TODO (parked, revisit): GitHub Actions release pipeline — tag-triggered
+> tauri-action build on a macOS runner, Developer ID cert + notary
+> credentials as repo secrets, notarize + staple in CI, publish the
+> Release with a stable `manabar.dmg` asset name so the site's
+> `/releases/latest/download/manabar.dmg` URL never changes. Until then,
+> releases follow the manual checklist below.
+
 Run every item before publishing a build. No skips.
 
 ## Audits

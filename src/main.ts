@@ -157,6 +157,35 @@ function stripFront(strip: StripMeter[]): number {
   return strip.length ? Math.min(...strip.map((m) => m.left)) : 100;
 }
 
+// THE LEXICON PIVOT: every mode-dependent string lives here, and only
+// here. Adding or changing wording means editing both variants of one
+// entry — the two modes cannot structurally drift apart.
+type Lexicon = {
+  session: (left: number, cd: string) => string;
+  refillNote: (amt: number, isWeek: boolean) => string;
+};
+
+const LEXICONS: Record<"plain" | "gamer", Lexicon> = {
+  plain: {
+    session: (left, cd) =>
+      `<span class="swatch" style="background:#5ecbba"></span><span class="dim">session</span> <span class="session">${left <= 0 ? "tapped" : `${Math.round(left)}%`}</span> <span class="dim">· refills in ${cd}</span>`,
+    refillNote: (amt, isWeek) =>
+      `+${amt}% ${isWeek ? "week" : "session"} refilled`,
+  },
+  gamer: {
+    session: (left, cd) =>
+      left <= 0
+        ? `<span class="session">mana tapped</span> <span class="dim">· refills in ${cd}</span>`
+        : `<span class="session">${Math.round(left)}% mana left</span> <span class="dim">· refills in ${cd}</span>`,
+    refillNote: (amt, isWeek) => `+${amt}% ${isWeek ? "week" : "mana"} refilled`,
+  },
+};
+
+let gamerMode = false;
+function lex(): Lexicon {
+  return LEXICONS[gamerMode ? "gamer" : "plain"];
+}
+
 function countdown(to: Date | null): string {
   if (!to) return "?";
   let s = Math.max(0, (to.getTime() - Date.now()) / 1000);
@@ -225,9 +254,7 @@ function render() {
   pill.classList.toggle("stale", state.failures >= MAX_FAILURES);
 
   const sessionTxt =
-    left === null
-      ? ""
-      : `<span class="swatch" style="background:#5ecbba"></span><span class="dim">session</span> <span class="session">${left <= 0 ? "tapped" : `${Math.round(left)}%`}</span> <span class="dim">· refills in ${countdown(state.sessionReset)}</span>`;
+    left === null ? "" : lex().session(left, countdown(state.sessionReset));
   // pill grammar: the hairline divider separates timescale GROUPS (session
   // vs weekly); dots punctuate within a group, ending with the group reset
   const div = `<span class="divider"></span>`;
@@ -248,7 +275,7 @@ function render() {
   }
   const refillTxt =
     state.refillAt && Date.now() - state.refillAt < REFILL_NOTE_MS
-      ? ` <span class="gold">+${Math.round(state.refillAmt)}% ${left === null ? "week" : "session"} refilled</span>`
+      ? ` <span class="gold">${lex().refillNote(Math.round(state.refillAmt), left === null)}</span>`
       : "";
   label.innerHTML = sessionTxt + stripTxt + refillTxt;
   document.body.classList.toggle("single-meter", state.strip.length === 0);
@@ -662,6 +689,15 @@ invoke<string>("get_provider")
   .then(setProvider)
   .catch(() => {});
 listen<string>("provider", (e) => setProvider(e.payload));
+
+function setGamerMode(on: boolean) {
+  gamerMode = on === true;
+  render();
+}
+invoke<boolean>("get_gamer_mode")
+  .then(setGamerMode)
+  .catch(() => {});
+listen<boolean>("gamer-mode", (e) => setGamerMode(e.payload));
 
 function setHudSize(size: string) {
   document.body.classList.remove("size-compact", "size-large");

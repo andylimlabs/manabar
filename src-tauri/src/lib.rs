@@ -12,6 +12,9 @@ const RECONCILE_SECS: u64 = 15;
 
 /// Show a bar on every display (tray-toggleable, persisted).
 static ALL_DISPLAYS: AtomicBool = AtomicBool::new(true);
+/// Gamer mode: the readout speaks mana instead of session (lexicon pivot
+/// in main.ts). Default off = plain vocabulary.
+static GAMER_MODE: AtomicBool = AtomicBool::new(false);
 /// HUD mode: "full" (bars + readout), "minimal" (readout only, hugging the
 /// screen edge), "hidden" (nothing). One radio state, game-style.
 static HUD_MODE: Mutex<String> = Mutex::new(String::new());
@@ -407,6 +410,11 @@ fn get_provider() -> String {
     active_provider()
 }
 
+#[tauri::command]
+fn get_gamer_mode() -> bool {
+    GAMER_MODE.load(Ordering::Relaxed)
+}
+
 fn settings_path(app: &AppHandle) -> Option<std::path::PathBuf> {
     app.path().app_config_dir().ok().map(|d| d.join("settings.json"))
 }
@@ -441,6 +449,9 @@ fn load_settings(app: &AppHandle) {
                         *PROVIDER.lock().unwrap() = p.to_string();
                     }
                 }
+                if let Some(b) = v["gamer_mode"].as_bool() {
+                    GAMER_MODE.store(b, Ordering::Relaxed);
+                }
             }
         }
     }
@@ -457,6 +468,7 @@ fn save_settings(app: &AppHandle) {
             "hud_mode": hud_mode(),
             "hud_size": hud_size(),
             "provider": active_provider(),
+            "gamer_mode": GAMER_MODE.load(Ordering::Relaxed),
         });
         let _ = std::fs::write(path, v.to_string());
     }
@@ -557,7 +569,8 @@ pub fn run() {
             get_label_position,
             get_hud_mode,
             get_hud_size,
-            get_provider
+            get_provider,
+            get_gamer_mode
         ])
         .setup(|app| {
             #[cfg(target_os = "macos")]
@@ -694,6 +707,14 @@ pub fn run() {
                 claude: prov_claude.clone(),
                 codex: prov_codex.clone(),
             });
+            let gamer = CheckMenuItem::with_id(
+                app,
+                "gamermode",
+                "Gamer mode",
+                true,
+                GAMER_MODE.load(Ordering::Relaxed),
+                None::<&str>,
+            )?;
             let demo =
                 MenuItem::with_id(app, "demo", "Preview animations", true, None::<&str>)?;
             let status = MenuItem::with_id(app, "status", "Status: starting…", false, None::<&str>)?;
@@ -712,6 +733,7 @@ pub fn run() {
                     &sizes,
                     &labels,
                     &all_displays,
+                    &gamer,
                     &demo,
                     &sep2,
                     &status,
@@ -727,6 +749,7 @@ pub fn run() {
                 size_large.clone(),
             ];
             let prov_items = [prov_claude.clone(), prov_codex.clone()];
+            let gamer_item = gamer.clone();
             TrayIconBuilder::new()
                 .icon(app.default_window_icon().expect("app icon").clone())
                 .menu(&menu)
@@ -735,6 +758,13 @@ pub fn run() {
                     "quit" => app.exit(0),
                     "demo" => {
                         let _ = app.emit("demo", ());
+                    }
+                    "gamermode" => {
+                        let on = !GAMER_MODE.load(Ordering::Relaxed);
+                        GAMER_MODE.store(on, Ordering::Relaxed);
+                        let _ = gamer_item.set_checked(on);
+                        save_settings(app);
+                        let _ = app.emit("gamer-mode", on);
                     }
                     id if id.starts_with("hud-") => {
                         let mode = id.trim_start_matches("hud-").to_string();

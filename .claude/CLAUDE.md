@@ -4,7 +4,8 @@ MMO-style mana bar overlay for Claude token limits. Owned by staff-engineer-mira
 
 ## Vocabulary (Andy's, use exactly)
 
-- **"mana" is RETIRED from all UI labels (Andy, 2026-08-10: "dropping the fun part, gave it a lot of thought").** The session meter reads like every other meter: swatch + label + value: "▮ session 74% · refills in 3h 53m", tapped = "▮ session tapped". "mana"/"manabar" survive ONLY as the product name and internal code names (mana slot, etc). A provider with no session window (codex Plus) has no session bar: its weekly renders in the weekly strip, pill "▮ week 88% · resets in 5d 9h". Never borrow the session slot for a weekly pool.
+- **GAMER MODE (tray toggle, default OFF)** brings the mana vocabulary back. ALL mode-dependent strings live in the LEXICONS pivot in main.ts (plain | gamer) — never inline a mode-conditional string anywhere else; add wording by editing both variants of one lexicon entry.
+- **"mana" is RETIRED from default UI labels (Andy, 2026-08-10: "dropping the fun part, gave it a lot of thought"; gamer mode re-added same day as opt-in).** The session meter reads like every other meter: swatch + label + value: "▮ session 74% · refills in 3h 53m", tapped = "▮ session tapped". "mana"/"manabar" survive ONLY as the product name and internal code names (mana slot, etc). A provider with no session window (codex Plus) has no session bar: its weekly renders in the weekly strip, pill "▮ week 88% · resets in 5d 9h". Never borrow the session slot for a weekly pool.
 - Fable = the per-model weekly cap (orange #d97757). Week = all-models weekly (indigo #6e7bf2). Mana bar is teal #5ecbba. Pill order: mana, then scoped (fable), then week.
 - Bubbles/segments (14 = 7 days x 2) are AESTHETIC ONLY. Fills move by continuous usage percent, never snap to ticks.
 - **One provider per HUD** (tray Provider submenu, Claude is the default). Never a multi-sub dashboard.

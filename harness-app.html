@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="stylesheet" href="/src/styles.css" />
+    <script>
+      const p = new URLSearchParams(location.search);
+      const reset5 = new Date(Date.now() + 3.9 * 3600e3).toISOString();
+      const reset7 = new Date(Date.now() + 6.1 * 86400e3).toISOString();
+      window.__TAURI_INTERNALS__ = {
+        invoke: async (cmd) => {
+          if (cmd === "get_label_position") return "right";
+          if (cmd === "get_hud_mode") return "full";
+          if (cmd === "get_hud_size") return "standard";
+          if (cmd === "get_provider") return "claude";
+          if (cmd === "get_gamer_mode") return p.get("gamer") === "1";
+          return JSON.stringify({
+            claude: {
+              five_hour: { utilization: 26, resets_at: reset5 },
+              seven_day: { utilization: 17, resets_at: reset7 },
+              limits: [
+                { kind: "session", group: "session", percent: 26, severity: "normal", resets_at: reset5, scope: null },
+                { kind: "weekly_all", group: "weekly", percent: 17, severity: "normal", resets_at: reset7, scope: null },
+                { kind: "weekly_scoped", group: "weekly", percent: 31, severity: "normal", resets_at: reset7, scope: { model: { id: null, display_name: "Fable" } } },
+              ],
+            },
+            codex: null, claude_error: "", codex_error: "",
+          });
+        },
+        transformCallback: (cb) => cb,
+        metadata: { currentWindow: { label: "main" }, currentWebview: { label: "main" } },
+      };
+    </script>
+  </head>
+  <body>
+    <div id="sessionbar"><div id="fill"></div></div>
+    <div id="bar">
+      <div id="ticks"></div>
+    </div>
+    <div id="pill"><span id="label">syncing…</span></div>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>

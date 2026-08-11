@@ -20,6 +20,16 @@
 <meta name="twitter:title" content="manabar: a mana bar for your agent stamina" />
 <meta name="twitter:description" content="A click-through meter at the bottom of your screen that keeps your agent stamina in view: what's left, and how fast the work is spending it." />
 <meta name="twitter:image" content="https://getmanabar.com/og.png" />
+<script>
+  window.__mbGA = /(^|\.)getmanabar\.com$/.test(location.hostname);
+</script>
+<script async src="https://www.googletagmanager.com/gtag/js?id=G-1FSNLBJPFJ"></script>
+<script>
+  window.dataLayer = window.dataLayer || [];
+  function gtag(){dataLayer.push(arguments);}
+  gtag('js', new Date());
+  gtag('config', 'G-1FSNLBJPFJ', { send_page_view: window.__mbGA });
+</script>
 <script type="application/ld+json">
 {
   "@context": "https://schema.org",
@@ -289,7 +299,6 @@
         <div class="sessionbar"><div class="fill"></div></div>
         <div class="weekbar"><div class="wf"></div><div class="ff"></div><div class="ticks"></div></div>
       </div>
-      <p>One toggle in the tray turns it on.</p>
     </div>
 
     <div class="status">

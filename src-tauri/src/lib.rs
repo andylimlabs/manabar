@@ -51,14 +51,14 @@ fn hud_size() -> String {
     }
 }
 
-/// Window height in logical points: weekly strip + session bar heights per
-/// size preset, plus headroom for the floating readout pill. Must track the
-/// CSS size presets in styles.css.
+/// Window height in logical points: bars + readout pill + headroom for
+/// refill toasts to fade up above the pill (the extra space is transparent
+/// and click-through, so it costs nothing). Must track styles.css presets.
 fn bar_height() -> f64 {
     match hud_size().as_str() {
-        "compact" => 38.0,
-        "large" => 46.0,
-        _ => 40.0,
+        "compact" => 62.0,
+        "large" => 70.0,
+        _ => 64.0,
     }
 }
 /// Last successful usage payload; lets a late-joining bar catch up instantly

@@ -36,7 +36,6 @@ const RENDER_MS = 10_000;
 const MAX_FAILURES = 3;
 const GHOST_TTL_MS = 150_000;
 const REFILL_TTL_MS = 8_000;
-const REFILL_NOTE_MS = 60_000;
 
 const bar = document.getElementById("bar")!;
 const sessionbar = document.getElementById("sessionbar")!;
@@ -71,8 +70,6 @@ type State = {
   hasData: boolean;
   setupNeeded: boolean;
   providerGap: "" | "setup" | "error"; // active provider absent from a good envelope
-  refillAt: number | null;
-  refillAmt: number;
 };
 
 const state: State = {
@@ -86,8 +83,6 @@ const state: State = {
   hasData: false,
   setupNeeded: false,
   providerGap: "",
-  refillAt: null,
-  refillAmt: 0,
 };
 
 // Spans live under the tick overlay so segments read as one surface.
@@ -152,6 +147,26 @@ function playRefill(host: HTMLElement, ...fills: HTMLElement[]) {
   setTimeout(() => host.classList.remove("glow"), 1800);
 }
 
+// Refill toast: fades up above the pill, horizontally anchored over the
+// countdown clause of the meter that refilled.
+function showToast(text: string, anchor: "s" | "w") {
+  const target = (label.querySelector(`.cd-${anchor}`) as HTMLElement) ?? pill;
+  const tr = target.getBoundingClientRect();
+  const pr = pill.getBoundingClientRect();
+  const t = document.createElement("div");
+  t.className = "toast";
+  t.textContent = text;
+  document.body.appendChild(t);
+  const w = t.getBoundingClientRect().width;
+  const h = t.getBoundingClientRect().height;
+  let x = tr.left + tr.width / 2 - w / 2;
+  x = Math.max(6, Math.min(x, window.innerWidth - w - 6));
+  t.style.left = `${x}px`;
+  t.style.top = `${pr.top - h - 6}px`;
+  setTimeout(() => t.classList.add("out"), 2600);
+  setTimeout(() => t.remove(), 3300);
+}
+
 // front edge of the strip = the lowest remaining among its meters
 function stripFront(strip: StripMeter[]): number {
   return strip.length ? Math.min(...strip.map((m) => m.left)) : 100;
@@ -162,22 +177,21 @@ function stripFront(strip: StripMeter[]): number {
 // entry — the two modes cannot structurally drift apart.
 type Lexicon = {
   session: (left: number, cd: string) => string;
-  refillNote: (amt: number, isWeek: boolean) => string;
+  refillToast: (amt: number, isWeek: boolean) => string;
 };
 
 const LEXICONS: Record<"plain" | "gamer", Lexicon> = {
   plain: {
     session: (left, cd) =>
-      `<span class="swatch" style="background:#5ecbba"></span><span class="dim">session</span> <span class="session">${left <= 0 ? "tapped" : `${Math.round(left)}%`}</span> <span class="dim">· refills in ${cd}</span>`,
-    refillNote: (amt, isWeek) =>
-      `+${amt}% ${isWeek ? "week" : "session"} refilled`,
+      `<span class="swatch" style="background:#5ecbba"></span><span class="dim">session</span> <span class="session">${left <= 0 ? "tapped" : `${Math.round(left)}%`}</span> <span class="dim cd-s">· refills in ${cd}</span>`,
+    refillToast: (amt, isWeek) => `+${amt}% ${isWeek ? "week" : "session"} refilled`,
   },
   gamer: {
     session: (left, cd) =>
       left <= 0
-        ? `<span class="session">mana tapped</span> <span class="dim">· refills in ${cd}</span>`
-        : `<span class="session">${Math.round(left)}% mana left</span> <span class="dim">· refills in ${cd}</span>`,
-    refillNote: (amt, isWeek) => `+${amt}% ${isWeek ? "week" : "mana"} refilled`,
+        ? `<span class="session">mana tapped</span> <span class="dim cd-s">· refills in ${cd}</span>`
+        : `<span class="session">${Math.round(left)}% mana left</span> <span class="dim cd-s">· refills in ${cd}</span>`,
+    refillToast: (amt, isWeek) => `+${amt}% ${isWeek ? "week" : "mana"} refilled`,
   },
 };
 
@@ -266,18 +280,14 @@ function render() {
     );
     const groupReset = state.strip.find((m) => m.reset)?.reset ?? null;
     const resetTxt = groupReset
-      ? ` <span class="dim">· resets in ${countdown(groupReset)}</span>`
+      ? ` <span class="dim cd-w">· resets in ${countdown(groupReset)}</span>`
       : "";
     stripTxt =
       (sessionTxt === "" ? "" : div) +
       entries.join(`<span class="gap"></span>`) +
       resetTxt;
   }
-  const refillTxt =
-    state.refillAt && Date.now() - state.refillAt < REFILL_NOTE_MS
-      ? ` <span class="gold">${lex().refillNote(Math.round(state.refillAmt), left === null)}</span>`
-      : "";
-  label.innerHTML = sessionTxt + stripTxt + refillTxt;
+  label.innerHTML = sessionTxt + stripTxt;
   document.body.classList.toggle("single-meter", state.strip.length === 0);
 }
 
@@ -456,8 +466,7 @@ function applyUsage(raw: string) {
         playRefill(sessionbar, fill);
         spawnSpan(sessionbar, "refill", state.displayLeft, now - state.displayLeft, REFILL_TTL_MS);
         state.displayLeft = now;
-        state.refillAt = Date.now();
-        state.refillAmt = now - prevLeft;
+        showToast(lex().refillToast(Math.round(now - prevLeft), false), "s");
       } else {
         // two-phase drop: commit the previous pending (fill drains through
         // its ghost), then open a new pending for this poll's drop
@@ -486,10 +495,7 @@ function applyUsage(raw: string) {
         // mana pool the pill note speaks for the week
         playRefill(bar, ...stripEls.values());
         spawnSpan(bar, "refill", prevWeekEdge, edge - prevWeekEdge, REFILL_TTL_MS);
-        if (state.sessionLeft === null) {
-          state.refillAt = Date.now();
-          state.refillAmt = edge - prevWeekEdge;
-        }
+        showToast(lex().refillToast(Math.round(edge - prevWeekEdge), true), "w");
       }
     }
   }
@@ -583,8 +589,6 @@ async function runDemo() {
     sessionLeft: state.sessionLeft,
     displayLeft: state.displayLeft,
     strip: state.strip.map((m) => ({ ...m })),
-    refillAt: state.refillAt,
-    refillAmt: state.refillAmt,
   };
   clearPending();
   const hasMana = state.sessionLeft !== null;
@@ -621,8 +625,7 @@ async function runDemo() {
     clearPending();
     playRefill(sessionbar, fill);
     spawnSpan(sessionbar, "refill", state.displayLeft, 100 - state.displayLeft, 2000);
-    state.refillAt = Date.now();
-    state.refillAmt = 100 - (state.sessionLeft ?? 0);
+    showToast(lex().refillToast(100 - Math.round(state.sessionLeft ?? 0), false), "s");
     state.sessionLeft = 100;
     state.displayLeft = 100;
     render();
@@ -634,18 +637,17 @@ async function runDemo() {
     const edge = stripFront(state.strip);
     playRefill(bar, ...stripEls.values());
     spawnSpan(bar, "refill", edge, 100 - edge, 2000);
+    showToast(lex().refillToast(100 - Math.round(edge), true), "w");
     state.strip = state.strip.map((m) => ({ ...m, left: 100 }));
     render();
     await sleep(4600);
   }
   // restore reality with animations suppressed.
   document.body.classList.add("noanim");
-  document.querySelectorAll(".ghost, .refill, .shine").forEach((el) => el.remove());
+  document.querySelectorAll(".ghost, .refill, .shine, .toast").forEach((el) => el.remove());
   state.sessionLeft = snap.sessionLeft;
   state.displayLeft = snap.displayLeft;
   state.strip = snap.strip;
-  state.refillAt = snap.refillAt;
-  state.refillAmt = snap.refillAmt;
   render();
   await sleep(80);
   document.body.classList.remove("noanim");
@@ -671,7 +673,7 @@ function setProvider(p: string) {
   if (next === provider) return;
   provider = next;
   clearPending();
-  document.querySelectorAll(".ghost, .refill, .shine").forEach((el) => el.remove());
+  document.querySelectorAll(".ghost, .refill, .shine, .toast").forEach((el) => el.remove());
   state.hasData = false;
   state.providerGap = "";
   document.body.classList.add("noanim");

@@ -104,54 +104,50 @@
   .demo .weekbar .ff, .mini .weekbar .ff { position: absolute; left: 0; top: 0; bottom: 0; width: 69%; background: var(--orange); z-index: 2; }
   .demo .weekbar .ticks, .mini .weekbar .ticks { position: absolute; inset: 0; z-index: 3; background: repeating-linear-gradient(90deg, transparent 0, transparent calc(100%/14 - 1px), rgba(0,0,0,0.5) calc(100%/14 - 1px), rgba(0,0,0,0.5) calc(100%/14)); }
 
-  .harnesses {
-    margin: 72px 0 0;
+
+  .atoast {
+    position: absolute;
+    right: 265px;
+    bottom: 56px;
+    background: rgba(14, 14, 18, 0.92);
+    border: 1px solid rgba(240, 200, 110, 0.35);
+    color: #f0c86e;
+    font-size: 11px;
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+    padding: 3px 8px;
+    border-radius: 6px;
+    opacity: 0;
+    animation: atoast 16s linear infinite;
   }
-  .harnesses h2 {
+  @keyframes atoast {
+    0%, 75% { opacity: 0; transform: translateY(8px); }
+    77%, 90% { opacity: 1; transform: none; }
+    93%, 100% { opacity: 0; transform: translateY(-4px); }
+  }
+
+  .demo-cap {
+    text-align: center;
+    color: var(--dim);
+    font-size: 13.5px;
+    margin: 12px auto 0;
+    max-width: 640px;
+  }
+  .demo-cap strong { color: var(--ink); font-weight: 650; }
+  .cdemo { height: 130px; margin-top: 40px; }
+  .gamer h2 {
     font-size: 13px;
     font-weight: 600;
     text-transform: uppercase;
     letter-spacing: 0.12em;
     color: var(--dim);
-    text-align: center;
-    margin-bottom: 20px;
+    margin-bottom: 12px;
   }
-  .harness-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
-    gap: 22px;
-    text-align: left;
-  }
-  .harness {
-    border: 1px solid var(--hair);
-    border-radius: 12px;
-    overflow: hidden;
-    background: #121318;
-  }
-  .harness .mini {
-    position: relative;
-    height: 96px;
-    background:
-      radial-gradient(120% 90% at 18% 0%, #46405230 0%, transparent 60%),
-      linear-gradient(160deg, #2b2933, #1c1e26 70%);
-  }
-  .harness .mini .pill {
-    font-size: 10.5px;
-    right: 10px;
-    bottom: 14px;
-    padding: 3px 8px;
-  }
-  .harness .meta {
-    padding: 14px 18px 16px;
-  }
-  .harness h3 {
-    font-size: 15px;
-    font-weight: 650;
-    margin-bottom: 3px;
-  }
-  .harness p {
+  .gintro {
     color: var(--dim);
-    font-size: 13.5px;
+    font-size: 15px;
+    max-width: 560px;
+    margin: 0 auto 22px;
   }
 
   .features {
@@ -248,35 +244,17 @@
     <div class="demo" role="img" aria-label="The manabar overlay depleting as work runs, then refilling">
       <div class="pill"><span class="sw" style="background:var(--teal)"></span><span class="d">session</span> <span class="pv-wrap"><span class="s pv pv1">100%</span><span class="s pv pv2">74%</span><span class="s pv pv3">61%</span><span class="s pv pv4">47%</span></span> <span class="d">· refills in 3h 53m</span><span class="sep"></span><span class="sw" style="background:var(--orange)"></span><span class="d">fable</span> <span class="f">69%</span><span class="sep"></span><span class="sw" style="background:var(--indigo)"></span><span class="d">week</span> <span class="w">83%</span> <span class="d">· resets in 6d 2h</span></div>
       <div class="sessionbar"><div class="fill anim"></div><div class="aghost g1"></div><div class="aghost g2"></div><div class="aghost g3"></div><div class="agold"></div><div class="ashine"></div></div>
+      <div class="atoast">+53% session refilled</div>
       <div class="weekbar"><div class="wf"></div><div class="ff"></div><div class="ticks"></div></div>
     </div>
 
-    <div class="harnesses">
-      <h2>Works with</h2>
-      <div class="harness-grid">
-        <div class="harness">
-          <div class="mini" role="img" aria-label="manabar in Claude mode: session meter and weekly strip">
-            <div class="pill"><span class="sw" style="background:var(--teal)"></span><span class="d">session</span> <span class="s">74%</span> <span class="d">· refills in 3h 53m</span><span class="sep"></span><span class="sw" style="background:var(--orange)"></span><span class="d">fable</span> <span class="f">69%</span><span class="sw" style="background:var(--indigo);margin-left:7px"></span><span class="d">week</span> <span class="w">83%</span> <span class="d">· resets in 6d 2h</span></div>
-            <div class="sessionbar"><div class="fill" style="width:74%"></div></div>
-            <div class="weekbar"><div class="wf" style="width:83%"></div><div class="ff" style="width:69%"></div><div class="ticks"></div></div>
-          </div>
-          <div class="meta">
-            <h3>Claude Code</h3>
-            <p>The session meter up top, both weekly meters in the strip, read from the sign-in your CLI already has.</p>
-          </div>
-        </div>
-        <div class="harness">
-          <div class="mini" role="img" aria-label="manabar in Codex mode: a single weekly bar">
-            <div class="pill" style="bottom:12px"><span class="sw" style="background:var(--indigo)"></span><span class="d">week</span> <span class="w">88%</span> <span class="d">· resets in 5d 9h</span></div>
-            <div class="weekbar"><div class="wf" style="width:88%"></div><div class="ticks"></div></div>
-          </div>
-          <div class="meta">
-            <h3>Codex</h3>
-            <p>Plans with one weekly window get one honest bar; plans with a session window get both, automatically.</p>
-          </div>
-        </div>
-      </div>
+    <p class="demo-cap"><strong>Claude Code</strong> · The session meter up top, both weekly meters in the strip, read from the sign-in your CLI already has.</p>
+
+    <div class="demo cdemo" role="img" aria-label="manabar in Codex mode: a single weekly bar">
+      <div class="pill"><span class="sw" style="background:var(--indigo)"></span><span class="d">week</span> <span class="w">88%</span> <span class="d">· resets in 5d 9h</span></div>
+      <div class="weekbar"><div class="wf" style="width:88%"></div><div class="ticks"></div></div>
     </div>
+    <p class="demo-cap"><strong>Codex</strong> · Plans with one weekly window get one honest bar; plans with a session window get both, automatically.</p>
 
     <div class="features">
       <div>
@@ -294,12 +272,14 @@
     </div>
 
     <div class="gamer">
+      <h2>Gamer mode</h2>
+      <p class="gintro">manabar started life speaking MMO. The default keeps it plain, and gamer mode brings the mana back: same bars, same numbers, full flavor.</p>
       <div class="demo gdemo" role="img" aria-label="manabar in gamer mode: the same bars with mana vocabulary">
         <div class="pill"><span class="s">74% mana left</span> <span class="d">· refills in 3h 53m</span><span class="sep"></span><span class="sw" style="background:var(--orange)"></span><span class="d">fable</span> <span class="f">69%</span><span class="sep"></span><span class="sw" style="background:var(--indigo)"></span><span class="d">week</span> <span class="w">83%</span> <span class="d">· resets in 6d 2h</span></div>
         <div class="sessionbar"><div class="fill"></div></div>
         <div class="weekbar"><div class="wf"></div><div class="ff"></div><div class="ticks"></div></div>
       </div>
-      <p>Miss the flavor? Gamer mode brings the mana back, one toggle in the tray.</p>
+      <p>One toggle in the tray turns it on.</p>
     </div>
 
     <div class="status">

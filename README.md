@@ -4,9 +4,9 @@ An MMO-style mana bar for your agent stamina. A click-through overlay pinned to 
 
 Website: [getmanabar.com](https://getmanabar.com)
 
-## Status
+## Install
 
-In development. The first downloadable build for macOS will appear on the [releases page](https://github.com/andylimlabs/manabar/releases). Until then you can build from source (below).
+[Download the DMG](https://github.com/andylimlabs/manabar/releases/latest/download/manabar.dmg) from the [releases page](https://github.com/andylimlabs/manabar/releases), open it, and drag manabar to Applications. Signed and notarized for macOS 12 or later, universal (Apple Silicon and Intel). Or build from source (below).
 
 ## What it shows
 

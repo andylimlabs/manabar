@@ -7,6 +7,12 @@
 > `/releases/latest/download/manabar.dmg` URL never changes. Until then,
 > releases follow the manual checklist below.
 
+> DECIDED 2026-08-10: no auto-updater in v0.1, deliberately. The Tauri
+> updater keypair does not exist yet, so early installs update by
+> downloading a new DMG. Revisit once there is a real install base;
+> adding the updater at that point strands only pre-updater installs
+> on manual downloads, which is the accepted trade.
+
 Run every item before publishing a build. No skips.
 
 ## Audits
@@ -18,7 +24,8 @@ Run every item before publishing a build. No skips.
 
 ## Build
 
-- [ ] `npm run tauri build` succeeds
+- [ ] `npm run tauri build -- --target universal-apple-darwin` succeeds (universal: Apple Silicon + Intel in one binary; needs `rustup target add x86_64-apple-darwin` once)
+- [ ] `lipo -archs` on the bundled binary shows `x86_64 arm64`
 - [ ] Launch the bundled .app (not the dev build) and verify: bars render, pill shows live data, tray menu works, Preview animations runs
 - [ ] Verify the production CSP did not break the webview (bars blank = CSP problem; check the webview console)
 

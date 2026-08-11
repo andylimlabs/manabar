@@ -1,30 +1,32 @@
 # manabar
 
-MMO-style mana bar overlay for Claude token limits. Owned by staff-engineer-mira.
+MMO-style stamina bar overlay for coding-agent usage limits. Tauri 2, vanilla TypeScript, macOS-first.
 
-## Vocabulary (Andy's, use exactly)
+## Vocabulary (locked, use exactly)
 
-- **GAMER MODE (tray toggle, default OFF)** brings the mana vocabulary back. ALL mode-dependent strings live in the LEXICONS pivot in main.ts (plain | gamer) — never inline a mode-conditional string anywhere else; add wording by editing both variants of one lexicon entry.
-- **"mana" is RETIRED from default UI labels (Andy, 2026-08-10: "dropping the fun part, gave it a lot of thought"; gamer mode re-added same day as opt-in).** The session meter reads like every other meter: swatch + label + value: "▮ session 74% · refills in 3h 53m", tapped = "▮ session tapped". "mana"/"manabar" survive ONLY as the product name and internal code names (mana slot, etc). A provider with no session window (codex Plus) has no session bar: its weekly renders in the weekly strip, pill "▮ week 88% · resets in 5d 9h". Never borrow the session slot for a weekly pool.
-- Fable = the per-model weekly cap (orange #d97757). Week = all-models weekly (indigo #6e7bf2). Mana bar is teal #5ecbba. Pill order: mana, then scoped (fable), then week.
-- Bubbles/segments (14 = 7 days x 2) are AESTHETIC ONLY. Fills move by continuous usage percent, never snap to ticks.
-- **One provider per HUD** (tray Provider submenu, Claude is the default). Never a multi-sub dashboard.
-- **Expandable, not dynamic**: strip meters come from the curated registry in each provider mapper (mapClaude/mapCodex). New API dimensions get console.warn'd, never auto-rendered; adding one is a deliberate registry entry with a chosen label and color.
+- The default readout is plain: every meter reads swatch + label + value: "session 74% · refills in 3h 53m". Session limits use "refills in"; weekly limits use "resets in".
+- **Gamer mode** brings the mana vocabulary back ("74% mana left"). ALL mode-dependent strings live in the LEXICONS pivot in `src/main.ts` (plain | gamer). Never inline a mode-conditional string anywhere else; new wording means editing both variants of one lexicon entry.
+- "mana" appears only in the product name and gamer mode. The session meter is teal, weekly is indigo, the per-model weekly cap is orange. Color encodes timescale; never render a weekly pool in the session slot.
+- Segment ticks (14 = 7 days x 2 half-days) are aesthetic only. Fills move by continuous usage percent, never snap to ticks.
 
-## Hard-won facts
+## Architecture rules
 
-- Usage data: `https://api.anthropic.com/api/oauth/usage`, Bearer token from Keychain entry "Claude Code-credentials" (`.claudeAiOauth.accessToken`), header `anthropic-beta: oauth-2025-04-20`. The `limits[]` array is the source of truth (session / weekly_all / weekly_scoped with `is_active` marking the binding limit). Top-level five_hour/seven_day fields are incomplete.
-- **The endpoint rate-limits hard.** Never poll faster than 60s, never let more than one window poll (primary polls, broadcasts; secondaries read the Rust LAST_USAGE cache). Do not curl it manually while the app runs.
-- Multi-window sync: never rely on emit alone; late-joining windows pull `cached_usage` on boot.
-- Windows are click-through (`set_ignore_cursor_events`), frameless, transparent, accessory policy. `macOSPrivateApi: true` in config requires the `macos-private-api` cargo feature or the build fails.
+- **One provider per HUD.** The tray Provider submenu switches between Claude and Codex; never a multi-provider dashboard. Claude is the default.
+- **Expandable, not dynamic.** Strip meters come from the curated registry in each provider mapper (`mapClaude`/`mapCodex`). Unknown API dimensions get `console.warn`, never auto-rendered; supporting one is a deliberate registry entry with a chosen label and color.
+- **Only the main window polls.** The usage endpoints rate-limit aggressively: never poll faster than 60s, never let more than one window fetch. Secondary bars read the Rust-side cache (`cached_usage`) on a local 5s poll; never trust window-to-window events for data.
+- Data minimization at the Rust boundary: `fetch_usage` projects provider payloads down to the fields the HUD renders before anything is cached or crosses to a webview.
 - Position math in LOGICAL coordinates only (mixed-DPI displays).
 
-## Dev
+## Provider facts
 
-- `npm run tauri dev`, vite port **1440** (registry: 1420 companion, 1430 suji, 1435 toka). Launch detached: `nohup npm run tauri dev > ~/Library/Logs/manabar-dev.log 2>&1 & disown`.
-- Verify UI via a temp `harness-app.html` at repo root stubbing `window.__TAURI_INTERNALS__` (invoke returns canned usage JSON; `?poll=` speeds the poll for ghost/refill testing). Delete the harness after. The real bars cannot be clicked.
-- Logo source: `design/logo.svg` (mana crystal, picked 2026-08-10; flask retired). Regenerate icons: `npm run tauri icon design/logo.svg`.
+- Claude: `https://api.anthropic.com/api/oauth/usage`, Bearer token from the macOS Keychain entry `Claude Code-credentials` (`.claudeAiOauth.accessToken`), header `anthropic-beta: oauth-2025-04-20`. The `limits[]` array is the source of truth (session / weekly_all / weekly_scoped; `is_active` marks the binding limit).
+- Codex: `https://chatgpt.com/backend-api/wham/usage`, Bearer token + `chatgpt-account-id` from `~/.codex/auth.json`. `rate_limit.primary_window` / `secondary_window` carry `used_percent` and `reset_at` (unix seconds). Plans with only a weekly window render a single bar.
+- Tokens are passed to curl via stdin (`-H @-`), never argv. Binaries are invoked by absolute path (`/usr/bin/curl`, `/usr/bin/security`).
 
-## Design direction
+## Dev notes
 
-Playful vocabulary, professional execution. Research-grounded HUD grammar lives in `design/ui-proposals.html`. Parked ideas: pace notch, at-pace projection, P4 detail view toggle, per-message ghosts via local JSONL transcripts, absolute-clock refill display.
+- `npm run tauri dev` (vite port 1440), `npm run tauri build` for release bundles.
+- The bars are click-through, so UI verification uses a temporary `harness-app.html` at repo root stubbing `window.__TAURI_INTERNALS__` (invoke returns canned usage JSON; `?poll=` speeds polling for ghost/refill testing; `window.dispatchEvent(new Event("manabar-demo"))` runs the animation preview). Delete the harness when done.
+- Icon files are not in cargo's dependency graph: after `npm run tauri icon design/logo.svg`, `touch src-tauri/tauri.conf.json` to force the re-embed.
+- `macOSPrivateApi: true` in tauri.conf.json requires the `macos-private-api` cargo feature or the build fails.
+- Release checklist: `docs/RELEASE.md`.

@@ -1,36 +1,45 @@
 # manabar
 
-An MMO-style mana bar for your Claude token limits. A click-through overlay pinned to the bottom edge of every display, showing your subscription meters the way a game would: mana that drains as you play and refills on a timer.
+An MMO-style mana bar for your agent stamina. A click-through overlay pinned to the bottom edge of every display: whatever tool you're working in, it shows how much session and weekly budget you have left, how fast the work is spending it, and exactly when you refill.
+
+Website: [getmanabar.com](https://getmanabar.com)
+
+## Status
+
+In development. The first downloadable build for macOS will appear on the [releases page](https://github.com/andylimlabs/manabar/releases). Until then you can build from source (below).
 
 ## What it shows
 
-- **Session (mana)**: the teal bar. Your 5-hour window, the fast loop. Drains as you burn tokens, refills fully at reset with a gold sweep and a "+N% mana refilled" note.
-- **Week**: the indigo strip with 14 segments (one per half-day). The slow, consequential budget.
-- **Fable**: the orange fill sharing the weekly strip. The per-model weekly cap. Whichever weekly is lower renders in front.
-- **Ghosts**: when mana drops between polls, a pale segment lingers where it was and fades out. A fat ghost trail means something is eating tokens right now.
-- **The pill**: `74% mana left · refills in 3h 53m │ ▮ fable 69% │ ▮ week 83%`
+- The session meter (teal) that drains as you burn tokens, with ghost trails marking recent usage and a gold sweep plus a small toast when the window resets
+- Weekly meters (indigo, with the per-model cap in orange) sharing a strip with 14 half-day segments
+- A readout pill: `session 74% · refills in 3h 53m | fable 69%  week 83% · resets in 6d 2h`
+- Gamer mode, if you prefer `74% mana left`: one toggle in the tray
+- Provider switch between Claude Code and Codex, plus HUD modes, sizes, and placement options
 
-## How it works
+## How it works, and why you can check
 
-The primary window polls Anthropic's OAuth usage endpoint once a minute (token read from the Claude Code entry in the macOS Keychain, never stored). Results are cached in the Rust core and broadcast to the bars on other displays, so extra displays never mean extra API traffic. Non-200 responses keep the last good data on screen and back off exponentially.
+manabar reads the sign-in your Claude Code or Codex CLI already has on your machine and asks the provider's own API for your usage meters. Credentials never leave your machine except to that provider over TLS, nothing is stored beyond meter percentages and reset times, and there is no account, telemetry, or server involved.
 
-A reconciler keeps one bar per display: plug in a monitor and a bar appears, unplug it and the bar is cleaned up.
+That claim is auditable: the code that touches your token lives in [`src-tauri/src/lib.rs`](src-tauri/src/lib.rs), and it is short.
 
-## Tray menu
+## Building from source
 
-- **Hide bars / Show bars**: toggles every bar.
-- **All displays**: bar on every screen vs primary only (persisted).
-- **Quit manabar**.
-
-## Dev
+Requires Node and Rust (the standard [Tauri 2 setup](https://v2.tauri.app/start/prerequisites/)).
 
 ```bash
 npm install
-npm run tauri dev   # vite on port 1440
+npm run tauri dev     # development, vite on port 1440
+npm run tauri build   # release bundle
 ```
 
-Bars are fully click-through; drive verification via the stubbed-`__TAURI_INTERNALS__` harness pattern (see memory/state notes) rather than clicking.
+## Requests and issues
 
-## Stack
+Want another bar style, meter presentation, or provider? Post it in [Discussions → Ideas](https://github.com/andylimlabs/manabar/discussions/categories/ideas) and upvote what you want built; the most-voted presentations get made. Bugs go to [issues](https://github.com/andylimlabs/manabar/issues). Providers and presentation vocabularies are deliberately easy to add: see the provider mappers and the lexicon pivot in [`src/main.ts`](src/main.ts).
 
-Tauri 2, vanilla TypeScript, no runtime dependencies beyond the Tauri API. macOS first.
+## License
+
+[MIT](LICENSE).
+
+---
+
+Made by Andy Lim. Not affiliated with Anthropic or OpenAI.

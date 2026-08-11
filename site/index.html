@@ -3,21 +3,21 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>manabar: a mana bar for your Claude limits</title>
+<title>manabar: a mana bar for your agent limits</title>
 <meta name="description" content="manabar pins a thin, click-through meter to the bottom of your screen. Your session drains as you work and the readout tells you exactly when you refill." />
 <link rel="canonical" href="https://getmanabar.com/" />
 <link rel="icon" type="image/png" href="/favicon.png" />
 <link rel="apple-touch-icon" href="/icon.png" />
 <meta property="og:type" content="website" />
 <meta property="og:site_name" content="manabar" />
-<meta property="og:title" content="manabar: a mana bar for your Claude limits" />
+<meta property="og:title" content="manabar: a mana bar for your agent limits" />
 <meta property="og:description" content="A click-through meter at the bottom of your screen. Your session drains as you work, and the readout tells you exactly when you refill." />
 <meta property="og:url" content="https://getmanabar.com/" />
 <meta property="og:image" content="https://getmanabar.com/og.png" />
 <meta property="og:image:width" content="1200" />
 <meta property="og:image:height" content="630" />
 <meta name="twitter:card" content="summary_large_image" />
-<meta name="twitter:title" content="manabar: a mana bar for your Claude limits" />
+<meta name="twitter:title" content="manabar: a mana bar for your agent limits" />
 <meta name="twitter:description" content="A click-through meter at the bottom of your screen. Your session drains as you work, and the readout tells you exactly when you refill." />
 <meta name="twitter:image" content="https://getmanabar.com/og.png" />
 <script type="application/ld+json">
@@ -164,6 +164,26 @@
   .features h2 { font-size: 15px; font-weight: 650; margin-bottom: 6px; }
   .features p { color: var(--dim); font-size: 14.5px; }
 
+  .gamer {
+    margin: 56px auto 0;
+    text-align: center;
+  }
+  .gamer .gpill { position: static;
+    display: inline-block;
+    background: rgba(14, 14, 18, 0.85);
+    border: 1px solid var(--hair);
+    border-radius: 6px;
+    padding: 4px 10px;
+    font-size: 12px;
+    color: rgba(255, 255, 255, 0.85);
+    font-variant-numeric: tabular-nums;
+  }
+  .gamer p {
+    color: var(--dim);
+    font-size: 14px;
+    margin-top: 10px;
+  }
+
   .status {
     margin: 72px auto 0;
     text-align: center;
@@ -189,7 +209,7 @@
   <div class="wrap">
     <header>
       <img class="flask" src="/icon.png" alt="manabar crystal logo" width="88" height="88" />
-      <h1>A <span class="mana">mana bar</span> for your Claude limits</h1>
+      <h1>A <span class="mana">mana bar</span> for your agent limits</h1>
       <p class="sub">manabar pins a thin, click-through meter to the bottom of your screen. Your session drains as you work, the weekly meters sit behind it, and the readout tells you exactly when you refill.</p>
     </header>
 
@@ -239,6 +259,11 @@
         <h2>Every display</h2>
         <p>One bar per screen, sized to each one, driven by a single poll. Hide them from the tray when you want the desk to yourself.</p>
       </div>
+    </div>
+
+    <div class="gamer">
+      <div class="pill gpill"><span class="s">74% mana left</span> <span class="d">· refills in 3h 53m</span></div>
+      <p>Miss the flavor? Gamer mode brings the mana back, one toggle in the tray.</p>
     </div>
 
     <div class="status">

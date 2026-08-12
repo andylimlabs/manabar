@@ -76,20 +76,37 @@ fn label_pos() -> String {
     }
 }
 
+/// Sign-in expired: Claude Code refreshes the token only when it runs, so
+/// manabar can't heal this itself. The frontend keys on this prefix.
+const EXPIRED: &str = "expired";
+
 fn keychain_token() -> Result<String, String> {
     let out = Command::new("/usr/bin/security")
         .args(["find-generic-password", "-s", "Claude Code-credentials", "-w"])
         .output()
         .map_err(|e| format!("security spawn: {e}"))?;
-    if !out.status.success() {
-        return Err("keychain read denied or entry missing".into());
-    }
+    let bytes = if out.status.success() {
+        out.stdout
+    } else {
+        // some installs store credentials in a file instead of the keychain
+        let home = std::env::var("HOME").map_err(|_| format!("{NO_CREDS}: no HOME"))?;
+        let path = std::path::Path::new(&home).join(".claude/.credentials.json");
+        std::fs::read(path).map_err(|_| format!("{NO_CREDS}: no Claude Code sign-in"))?
+    };
     let creds: serde_json::Value =
-        serde_json::from_slice(&out.stdout).map_err(|e| format!("credentials parse: {e}"))?;
-    creds["claudeAiOauth"]["accessToken"]
-        .as_str()
-        .map(|s| s.to_string())
-        .ok_or_else(|| "no accessToken in credentials".into())
+        serde_json::from_slice(&bytes).map_err(|e| format!("credentials parse: {e}"))?;
+    let oauth = &creds["claudeAiOauth"];
+    let token = oauth["accessToken"].as_str().ok_or(format!(
+        "{NO_CREDS}: no usage token (API key sign-in has no subscription meters)"
+    ))?;
+    // expiry is recorded next to the token: catch it locally for a precise
+    // message instead of burning a poll on a guaranteed 401
+    if let Some(exp) = oauth["expiresAt"].as_u64() {
+        if (exp as u128) < unix_ms() {
+            return Err(format!("{EXPIRED}: token expired, open Claude Code to refresh"));
+        }
+    }
+    Ok(token.to_string())
 }
 
 fn query_usage(token: &str) -> Result<String, String> {
@@ -127,6 +144,9 @@ fn query_usage(token: &str) -> Result<String, String> {
     if status == "404" || status == "410" {
         // endpoint moved or retired: manabar itself needs updating
         return Err(format!("gone: http {status}"));
+    }
+    if status == "401" {
+        return Err(format!("{EXPIRED}: http 401, open Claude Code to refresh"));
     }
     if status != "200" {
         let head: String = body.chars().take(120).collect();
@@ -191,6 +211,9 @@ fn query_codex(token: &str, account_id: &str) -> Result<String, String> {
     if status == "404" || status == "410" {
         return Err(format!("gone: http {status}"));
     }
+    if status == "401" {
+        return Err(format!("{EXPIRED}: http 401, open Codex to refresh"));
+    }
     if status != "200" {
         let head: String = body.chars().take(120).collect();
         return Err(format!("http {status}: {head}"));
@@ -252,7 +275,12 @@ async fn fetch_usage(app: AppHandle) -> Result<String, String> {
         let claude = keychain_token().and_then(|t| query_usage(&t));
         let codex = read_codex_auth().and_then(|(t, a)| query_codex(&t, &a));
         match (&claude, &codex) {
-            (Err(ce), Err(xe)) => {
+            // an expired sign-in is a definitive state, not a transient
+            // failure: deliver it as an envelope so the HUD can say what to
+            // do, instead of Err (which keeps stale data + backs off)
+            (Err(ce), Err(xe))
+                if !ce.starts_with(EXPIRED) && !xe.starts_with(EXPIRED) =>
+            {
                 if ce.starts_with(NO_CREDS) && xe.starts_with(NO_CREDS) {
                     Err("no-providers".to_string())
                 } else if ce.starts_with("gone") || xe.starts_with("gone") {
@@ -338,15 +366,19 @@ struct ProvMenuItems {
 
 /// Tray diagnostics: facts and hedged hints live here, never in the pill.
 fn update_status(app: &AppHandle, result: &Result<String, String>) {
-    fn prov(err: &str) -> &'static str {
+    fn prov(err: &str) -> String {
         if err.is_empty() {
-            "OK"
+            "OK".into()
         } else if err.starts_with("gone") {
-            "API changed?"
+            "API changed?".into()
         } else if err.starts_with(NO_CREDS) {
-            "not signed in"
+            "not signed in".into()
+        } else if err.starts_with(EXPIRED) {
+            "sign-in expired".into()
         } else {
-            "error"
+            // short factual detail so a bug report arrives with a diagnosis
+            let head: String = err.chars().take(40).collect();
+            format!("error ({head})")
         }
     }
     let text = match result {
@@ -372,6 +404,8 @@ fn update_status(app: &AppHandle, result: &Result<String, String>) {
         let name = |base: &str, err: &str| {
             if err.starts_with(NO_CREDS) {
                 format!("{base} (not signed in)")
+            } else if err.starts_with(EXPIRED) {
+                format!("{base} (sign-in expired)")
             } else {
                 base.to_string()
             }

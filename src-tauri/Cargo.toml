@@ -1,6 +1,6 @@
 [package]
 name = "manabar"
-version = "0.1.0"
+version = "0.1.1"
 description = "manabar: an MMO-style mana bar for your agent stamina"
 authors = ["Andy Lim"]
 edition = "2021"

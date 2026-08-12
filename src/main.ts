@@ -69,7 +69,7 @@ type State = {
   failures: number;
   hasData: boolean;
   setupNeeded: boolean;
-  providerGap: "" | "setup" | "error"; // active provider absent from a good envelope
+  providerGap: "" | "setup" | "expired" | "error"; // active provider absent from a good envelope
 };
 
 const state: State = {
@@ -218,11 +218,13 @@ function render() {
       ? "sign in to Claude Code or Codex to start"
       : state.providerGap === "setup"
         ? `sign in to ${providerName} to start`
-        : state.providerGap === "error"
-          ? `${providerName} usage unavailable`
-          : state.failures >= MAX_FAILURES
-            ? "usage unavailable"
-            : "syncing…";
+        : state.providerGap === "expired"
+          ? `${providerName} sign-in expired · open ${providerName} to refresh`
+          : state.providerGap === "error"
+            ? `${providerName} usage unavailable`
+            : state.failures >= MAX_FAILURES
+              ? "usage unavailable"
+              : "syncing…";
     return;
   }
 
@@ -426,7 +428,7 @@ function applyUsage(raw: string) {
     parsed && typeof parsed === "object" && ("claude" in parsed || "codex" in parsed);
   const usage = (isEnvelope ? parsed.claude : parsed) as Usage | null;
   const codex = (isEnvelope ? parsed.codex : null) as CodexUsage;
-  if (!usage && !codex) {
+  if (!usage && !codex && !isEnvelope) {
     throw new Error(`no providers in response: ${raw.slice(0, 120)}`);
   }
   let m: Meters | null = null;
@@ -445,7 +447,11 @@ function applyUsage(raw: string) {
         "",
     );
     state.hasData = false;
-    state.providerGap = err.startsWith("no-creds") ? "setup" : "error";
+    state.providerGap = err.startsWith("no-creds")
+      ? "setup"
+      : err.startsWith("expired")
+        ? "expired"
+        : "error";
     state.failures = 0;
     render();
     return;

@@ -523,7 +523,7 @@ fn ensure_bar(app: &AppHandle, label: &str, mon: &Monitor) {
         return;
     }
     let built = WebviewWindowBuilder::new(app, label, WebviewUrl::App("index.html".into()))
-        .title("manabar")
+        .title("ManaBar")
         .decorations(false)
         .transparent(true)
         .shadow(false)
@@ -753,7 +753,7 @@ pub fn run() {
                 MenuItem::with_id(app, "demo", "Preview animations", true, None::<&str>)?;
             let status = MenuItem::with_id(app, "status", "Status: starting…", false, None::<&str>)?;
             app.manage(StatusItem(status.clone()));
-            let quit = MenuItem::with_id(app, "quit", "Quit manabar", true, None::<&str>)?;
+            let quit = MenuItem::with_id(app, "quit", "Quit ManaBar", true, None::<&str>)?;
             let sep1 = PredefinedMenuItem::separator(app)?;
             let sep2 = PredefinedMenuItem::separator(app)?;
             let menu = Menu::with_items(

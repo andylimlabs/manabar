@@ -2,6 +2,8 @@
 
 MMO-style stamina bar overlay for coding-agent usage limits. Tauri 2, vanilla TypeScript, macOS-first.
 
+Naming: the product is "ManaBar" (TitleCase, Apple convention) everywhere a person reads it: app bundle, menus, site copy, README, release notes. Lowercase "manabar" survives only where renaming would break things: the domain, the GitHub repo, the bundle identifier, code identifiers, and the `manabar.dmg` release asset (stable latest-download URL).
+
 ## Vocabulary (locked, use exactly)
 
 - The default readout is plain: every meter reads swatch + label + value: "session 74% · refills in 3h 53m". Session limits use "refills in"; weekly limits use "resets in".

@@ -1,14 +1,14 @@
-# manabar
+# ManaBar
 
 An MMO-style mana bar for your agent stamina. A click-through overlay pinned to the bottom edge of every display: whatever tool you're working in, it shows how much session and weekly budget you have left, how fast the work is spending it, and exactly when you refill.
 
 Website: [getmanabar.com](https://getmanabar.com)
 
-![The manabar overlay mid-session: the session meter at 61% with a ghost trail marking recent usage, and the weekly meters below](design/readme-hero.png)
+![The ManaBar overlay mid-session: the session meter at 61% with a ghost trail marking recent usage, and the weekly meters below](design/readme-hero.png)
 
 ## Install
 
-[Download the DMG](https://github.com/andylimlabs/manabar/releases/latest/download/manabar.dmg) from the [releases page](https://github.com/andylimlabs/manabar/releases), open it, and drag manabar to Applications. Signed and notarized for macOS 12 or later, universal (Apple Silicon and Intel). Or build from source (below).
+[Download the DMG](https://github.com/andylimlabs/manabar/releases/latest/download/manabar.dmg) from the [releases page](https://github.com/andylimlabs/manabar/releases), open it, and drag ManaBar to Applications. Signed and notarized for macOS 12 or later, universal (Apple Silicon and Intel). Or build from source (below).
 
 ## What it shows
 
@@ -20,7 +20,7 @@ Website: [getmanabar.com](https://getmanabar.com)
 
 ## How it works, and why you can check
 
-manabar reads the sign-in your Claude Code or Codex CLI already has on your machine and asks the provider's own API for your usage meters. Credentials never leave your machine except to that provider over TLS, nothing is stored beyond meter percentages and reset times, and there is no account, telemetry, or server involved.
+ManaBar reads the sign-in your Claude Code or Codex CLI already has on your machine and asks the provider's own API for your usage meters. Credentials never leave your machine except to that provider over TLS, nothing is stored beyond meter percentages and reset times, and there is no account, telemetry, or server involved.
 
 That claim is auditable: the code that touches your token lives in [`src-tauri/src/lib.rs`](src-tauri/src/lib.rs), and it is short.
 

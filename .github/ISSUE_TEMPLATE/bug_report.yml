@@ -1,0 +1,43 @@
+name: Bug report
+description: Something in manabar is broken or wrong
+labels: [bug]
+body:
+  - type: checkboxes
+    id: no-secrets
+    attributes:
+      label: Credential safety
+      options:
+        - label: I confirm this report contains no tokens, API keys, or credential file contents
+          required: true
+  - type: input
+    id: version
+    attributes:
+      label: manabar version
+      placeholder: "0.1.0"
+    validations:
+      required: true
+  - type: input
+    id: macos
+    attributes:
+      label: macOS version
+      placeholder: "15.5, Apple Silicon"
+    validations:
+      required: true
+  - type: dropdown
+    id: provider
+    attributes:
+      label: Active provider
+      options:
+        - Claude Code
+        - Codex
+        - Both / switching between them
+        - Not sure
+    validations:
+      required: true
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened
+      description: What you saw, what you expected, and steps to reproduce.
+    validations:
+      required: true

@@ -1,0 +1,340 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<title>manabar · UI proposals</title>
+<style>
+  :root {
+    --bg: #0e0f13;
+    --panel: #15161c;
+    --ink: #e8e9ee;
+    --dim: #8b8e9c;
+    --hair: rgba(255, 255, 255, 0.08);
+    --indigo: #6e7bf2;
+    --indigo-hi: #98a2ff;
+    --teal: #5ecbba;
+    --amber: #e0a83c;
+    --red: #e25a5a;
+    --mono: "SF Mono", ui-monospace, Menlo, monospace;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    background: var(--bg);
+    color: var(--ink);
+    font: 15px/1.6 -apple-system, "SF Pro Text", sans-serif;
+    padding: 48px 0 120px;
+  }
+  .wrap { max-width: 860px; margin: 0 auto; padding: 0 32px; }
+  h1 { font-size: 26px; font-weight: 700; letter-spacing: -0.02em; }
+  .sub { color: var(--dim); margin: 6px 0 40px; }
+  h2 {
+    font-size: 13px; font-weight: 600; text-transform: uppercase;
+    letter-spacing: 0.12em; color: var(--dim); margin: 56px 0 16px;
+  }
+  .digest { background: var(--panel); border: 1px solid var(--hair); border-radius: 10px; padding: 20px 24px; }
+  .digest li { margin: 8px 0 8px 18px; }
+  .digest b { color: var(--indigo-hi); font-weight: 600; }
+  .digest .src { color: var(--dim); font-size: 13px; }
+
+  .prop { margin-top: 64px; }
+  .prop-head { display: flex; align-items: baseline; gap: 12px; }
+  .tag {
+    font: 600 11px/1 var(--mono); color: var(--bg);
+    background: var(--indigo-hi); border-radius: 4px; padding: 4px 7px;
+  }
+  .tag.rec { background: var(--teal); }
+  .prop h3 { font-size: 19px; font-weight: 650; letter-spacing: -0.01em; }
+  .thesis { color: var(--dim); margin: 8px 0 18px; max-width: 700px; }
+  .tradeoffs { display: flex; gap: 28px; margin: 18px 0 8px; font-size: 13.5px; }
+  .tradeoffs div { flex: 1; }
+  .tradeoffs h4 { font-size: 11px; text-transform: uppercase; letter-spacing: 0.1em; margin-bottom: 6px; }
+  .keeps h4 { color: var(--teal); }
+  .costs h4 { color: var(--amber); }
+  .tradeoffs li { margin: 3px 0 3px 16px; color: #b9bcc7; }
+
+  /* desktop-edge frame each mock sits in, bar pinned to its bottom like the real overlay */
+  .desk {
+    position: relative; height: 96px; border-radius: 8px; overflow: hidden;
+    border: 1px solid var(--hair); margin: 14px 0 6px;
+    background:
+      radial-gradient(120% 90% at 20% 0%, #4a4257 0%, transparent 60%),
+      radial-gradient(100% 80% at 85% 20%, #2e4a55 0%, transparent 55%),
+      linear-gradient(160deg, #3d3a45, #23262f 70%);
+  }
+  .desk.dim { filter: brightness(0.92); }
+  .cap { color: var(--dim); font-size: 12.5px; font-family: var(--mono); margin-bottom: 4px; }
+
+  /* ---------- shared bar bits ---------- */
+  .strip { position: absolute; left: 0; right: 0; bottom: 0; height: 8px; background: rgba(8, 8, 12, 0.6); }
+  .strip .fill { position: absolute; left: 0; top: 0; bottom: 0; background: var(--indigo); }
+  .strip .ticks {
+    position: absolute; inset: 0;
+    background: repeating-linear-gradient(90deg, transparent 0, transparent calc(5% - 1px), rgba(0,0,0,0.5) calc(5% - 1px), rgba(0,0,0,0.5) 5%);
+  }
+  .spark {
+    position: absolute; top: 50%; width: 18px; height: 18px; transform: translate(-9px, -50%);
+    background: radial-gradient(circle, rgba(215, 220, 255, 0.95) 0%, rgba(152, 162, 255, 0.5) 35%, transparent 70%);
+    animation: sparkle 2.4s ease-in-out infinite;
+  }
+  @keyframes sparkle { 0%, 100% { opacity: 0.75; } 50% { opacity: 1; } }
+  .hairline { position: absolute; left: 0; right: 0; bottom: 8px; height: 2px; background: rgba(8, 8, 12, 0.4); }
+  .hairline .fill { position: absolute; left: 0; top: 0; bottom: 0; background: rgba(94, 203, 186, 0.9); }
+
+  .pill {
+    position: absolute; right: 12px; bottom: 16px;
+    background: rgba(13, 13, 17, 0.85); border: 1px solid var(--hair); border-radius: 6px;
+    padding: 4px 10px; font: 11px/1.5 -apple-system, sans-serif; color: rgba(255,255,255,0.85);
+    font-variant-numeric: tabular-nums; white-space: nowrap; box-shadow: 0 1px 8px rgba(0,0,0,0.4);
+  }
+  .pill .n { font-weight: 650; }
+  .pill .s { color: var(--indigo-hi); }
+  .pill .w { color: var(--teal); }
+  .pill .d { color: rgba(255,255,255,0.42); }
+  .pill .warn { color: var(--amber); }
+  .pill .crit { color: var(--red); }
+
+  /* P2 ghost */
+  .ghost { position: absolute; top: 0; bottom: 0; background: rgba(222, 226, 255, 0.34); }
+
+  /* P3 resin pill */
+  .resin {
+    position: absolute; right: 14px; bottom: 14px;
+    display: flex; align-items: center; gap: 9px;
+    background: rgba(13, 13, 17, 0.88); border: 1px solid var(--hair); border-radius: 999px;
+    padding: 7px 14px 7px 11px; box-shadow: 0 2px 10px rgba(0,0,0,0.45);
+  }
+  .resin .gem { width: 16px; height: 16px; border-radius: 4px; transform: rotate(45deg);
+    background: linear-gradient(135deg, #aab2ff, #5f6ce0); box-shadow: 0 0 8px rgba(140, 150, 255, 0.7); }
+  .resin .num { font: 650 14px/1 var(--mono); color: #e6e8ff; letter-spacing: -0.02em; }
+  .resin .num small { color: var(--dim); font-weight: 500; }
+  .resin .meta { font: 10.5px/1.35 -apple-system, sans-serif; color: var(--dim); }
+  .resin .meta b { color: #cdd2e4; font-weight: 600; }
+
+  /* P4 timer stack */
+  .stack { position: absolute; right: 14px; bottom: 12px; width: 240px; display: flex; flex-direction: column; gap: 5px; }
+  .tbar { position: relative; height: 16px; border-radius: 3px; overflow: hidden; background: rgba(10,10,14,0.72); border: 1px solid var(--hair); }
+  .tbar .tfill { position: absolute; left: 0; top: 0; bottom: 0; }
+  .tbar .tname { position: absolute; left: 7px; top: 0; bottom: 0; display: flex; align-items: center;
+    font: 600 9.5px/1 var(--mono); color: rgba(255,255,255,0.92); text-shadow: 0 1px 2px rgba(0,0,0,0.7); letter-spacing: 0.04em; }
+  .tbar .ttime { position: absolute; right: 7px; top: 0; bottom: 0; display: flex; align-items: center;
+    font: 600 9.5px/1 var(--mono); color: rgba(255,255,255,0.75); }
+
+  .note { color: var(--dim); font-size: 13.5px; margin-top: 10px; max-width: 700px; }
+  .note b { color: var(--ink); font-weight: 600; }
+
+  /* deep-dive annotations */
+  .pin {
+    position: absolute; font: 600 10px/1.3 var(--mono); color: #cdd2e4;
+    background: rgba(13,13,17,0.9); border: 1px solid var(--hair); border-radius: 4px;
+    padding: 3px 6px; white-space: nowrap;
+  }
+  .pin::after {
+    content: ""; position: absolute; left: 50%; top: 100%; width: 1px; height: var(--drop, 14px);
+    background: rgba(255,255,255,0.35);
+  }
+  .pin .k { color: var(--indigo-hi); }
+  .notch { position: absolute; top: -3px; bottom: -3px; width: 2px; background: rgba(255,255,255,0.85); box-shadow: 0 0 4px rgba(255,255,255,0.6); }
+  .ticks10 { position: absolute; inset: 0;
+    background: repeating-linear-gradient(90deg, transparent 0, transparent calc(10% - 1px), rgba(0,0,0,0.5) calc(10% - 1px), rgba(0,0,0,0.5) 10%); }
+  .ticks14 { position: absolute; inset: 0;
+    background: repeating-linear-gradient(90deg, transparent 0, transparent calc(100%/14 - 1px), rgba(0,0,0,0.5) calc(100%/14 - 1px), rgba(0,0,0,0.5) calc(100%/14)); }
+  .weekbar-promoted { position: absolute; left: 0; right: 0; bottom: 8px; height: 5px; background: rgba(8,8,12,0.5); }
+  .weekbar-promoted .fill { position: absolute; left: 0; top: 0; bottom: 0; background: rgba(94, 203, 186, 0.85); }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>manabar · UI proposals</h1>
+  <p class="sub">Five directions grounded in MMO and gacha meter research. Mocks are at true height, pinned to the bottom edge of a fake desktop.</p>
+
+  <h2>Research digest</h2>
+  <div class="digest">
+    <ul>
+      <li><b>Draw the future on the bar.</b> WoW rested XP renders a pale ghost segment ahead of the fill showing bonus runway. The future is spatial, not textual.</li>
+      <li><b>Ticks create vocabulary.</b> WoW's 20 bubbles let players say "half a bubble left". Segments make a long-lived bar quantifiable at a glance.</li>
+      <li><b>Two-layer change display.</b> Fighting games snap the true value instantly, then a ghost layer lingers (SF6: 2s hold) so you can see what you just spent.</li>
+      <li><b>Integer current/max, never percent.</b> Genshin resin (45/200), HSR power, Arknights sanity. Numbers in spendable units read as "runs remaining".</li>
+      <li><b>Absolute clock beats countdown for planning.</b> "Fully replenished at 7:40 AM" is what players act on. Countdown only for the short loop.</li>
+      <li><b>Urgency ladder.</b> Bar, then flashing bar, then literal digits. The closer to empty, the more explicit the readout (Sonic drowning, BotW stamina).</li>
+      <li><b>State is a whole-fill recolor</b> (WoW purple to blue), not a badge. Icons only for "currently accruing" (FFXIV moon).</li>
+      <li><b>Conditional visibility.</b> BotW's stamina wheel appears only while draining. A meter that only matters sometimes should only exist sometimes.</li>
+    </ul>
+    <p class="src" style="margin-top:10px">Sourced from WoW FrameXML, FFXIV job gauges + Simple Mode, SF6 frame data, Genshin/HSR/FGO/Arknights wikis, Game UI Database, F2P energy-system literature.</p>
+  </div>
+
+  <!-- ================= P1 ================= -->
+  <div class="prop">
+    <div class="prop-head"><span class="tag">P1</span><h3>Bubbles · the WoW exp bar, done properly</h3></div>
+    <p class="thesis">Refine the current strip with the three details that make WoW's bar iconic: a spark riding the fill edge, ticks promoted to real bubble segments, and the pill speaking in bubbles and clock time instead of raw percent.</p>
+    <div class="cap">normal · 84% session left, spark at fill edge</div>
+    <div class="desk">
+      <div class="hairline"><div class="fill" style="width:79%"></div></div>
+      <div class="strip">
+        <div class="fill" style="width:84%"></div>
+        <div class="ticks"></div>
+        <div class="spark" style="left:84%"></div>
+      </div>
+      <div class="pill"><span class="n s">17 bubbles</span> <span class="d">· resets 8:40 PM · week</span> <span class="n w">79%</span></div>
+    </div>
+    <div class="tradeoffs">
+      <div class="keeps"><h4>Keeps</h4><ul><li>Current architecture, pure polish</li><li>Bubble vocabulary: "2 bubbles left tonight"</li><li>Spark makes drain visible in peripheral vision</li></ul></div>
+      <div class="costs"><h4>Costs</h4><ul><li>Least ambitious of the five</li><li>Percent still the underlying unit</li></ul></div>
+    </div>
+  </div>
+
+  <!-- ================= P2 ================= -->
+  <div class="prop">
+    <div class="prop-head"><span class="tag">P2</span><h3>Ghost drain · the fighting game two-layer bar</h3></div>
+    <p class="thesis">When tokens burn, the fill snaps down and a pale ghost segment lingers where the mana used to be, decaying over about a minute. A heavy agent session leaves a visible bite mark. Burn rate becomes spatial: fat ghost means fast burn.</p>
+    <div class="cap">mid-burn · 62% left, ghost shows the 8% consumed by the last few minutes</div>
+    <div class="desk dim">
+      <div class="hairline"><div class="fill" style="width:79%"></div></div>
+      <div class="strip">
+        <div class="fill" style="width:62%"></div>
+        <div class="ghost" style="left:62%; width:8%"></div>
+        <div class="ticks"></div>
+        <div class="spark" style="left:62%"></div>
+      </div>
+      <div class="pill"><span class="n s">62%</span> <span class="d">·</span> <span class="n warn">-8% / 10 min</span> <span class="d">· at this pace tapped by 6:10 PM · resets 8:40 PM</span></div>
+    </div>
+    <div class="tradeoffs">
+      <div class="keeps"><h4>Keeps</h4><ul><li>Answers "what is eating my bar" at a glance</li><li>Pairs naturally with a pace projection readout</li><li>Composable with P1 or P5</li></ul></div>
+      <div class="costs"><h4>Costs</h4><ul><li>Needs burn-rate state kept client-side between polls</li><li>60s poll granularity makes the ghost chunky, not smooth</li></ul></div>
+    </div>
+  </div>
+
+  <!-- ================= P3 ================= -->
+  <div class="prop">
+    <div class="prop-head"><span class="tag">P3</span><h3>Resin pill · the gacha readout, no bar at all</h3></div>
+    <p class="thesis">Genshin grammar: a gem icon plus integer current/max in a floating pill, with the absolute refill clock underneath. Session mapped to a 200 point mana pool. Optionally invisible above half, appearing only when the pool matters (BotW rule).</p>
+    <div class="cap">corner pill only · 168/200 mana, full-width strip gone</div>
+    <div class="desk">
+      <div class="resin">
+        <div class="gem"></div>
+        <div>
+          <div class="num">168<small>/200</small></div>
+          <div class="meta"><b>resets 8:40 PM</b> · week 158/200 · fable 158/200</div>
+        </div>
+      </div>
+    </div>
+    <div class="tradeoffs">
+      <div class="keeps"><h4>Keeps</h4><ul><li>Smallest footprint, zero full-width presence</li><li>Integer pool reads as owned currency, not a quota</li><li>Conditional visibility keeps the desktop clean</li></ul></div>
+      <div class="costs"><h4>Costs</h4><ul><li>The 200 pool is invented: API only gives percent</li><li>Loses the ambient exp-bar fantasy that started this</li><li>No peripheral-vision signal while working</li></ul></div>
+    </div>
+  </div>
+
+  <!-- ================= P4 ================= -->
+  <div class="prop">
+    <div class="prop-head"><span class="tag">P4</span><h3>Timer stack · the raid boss-mod frame</h3></div>
+    <p class="thesis">DBM/BigWigs grammar: every limit is its own mini bar with the name on the left and time on the right, stacked in the corner and sorted by which binds first. Session, week, and fable get equal, uniform treatment. Scales automatically if Anthropic adds meters.</p>
+    <div class="cap">corner stack · three limits, most binding on top</div>
+    <div class="desk dim">
+      <div class="stack">
+        <div class="tbar"><div class="tfill" style="width:84%; background:var(--indigo)"></div><div class="tname">SESSION</div><div class="ttime">8:40 PM</div></div>
+        <div class="tbar"><div class="tfill" style="width:79%; background:#4aa392"></div><div class="tname">FABLE WK</div><div class="ttime">MON 4 AM</div></div>
+        <div class="tbar"><div class="tfill" style="width:89%; background:#3d8577"></div><div class="tname">WEEK</div><div class="ttime">MON 4 AM</div></div>
+      </div>
+    </div>
+    <div class="tradeoffs">
+      <div class="keeps"><h4>Keeps</h4><ul><li>All meters first-class, nothing squeezed into a hairline</li><li>Future-proof against new scoped limits</li><li>Familiar to anyone who has raided</li></ul></div>
+      <div class="costs"><h4>Costs</h4><ul><li>Busiest option: three bars always on screen</li><li>Corner block competes with app windows more than an edge strip</li></ul></div>
+    </div>
+  </div>
+
+  <!-- ================= P5 ================= -->
+  <div class="prop">
+    <div class="prop-head"><span class="tag rec">P5 · REC</span><h3>Hybrid HUD · exp bar body, gacha brain, ghost layer</h3></div>
+    <p class="thesis">Keep the full-width exp strip as the ambient layer (P1 polish: spark, bubbles). Give the pill the gacha grammar: absolute reset clock, at-pace projection, and the urgency ladder. Fold in the P2 ghost for recent burn. States below show the ladder.</p>
+    <div class="cap">state 1 · healthy: calm strip, clock-time pill</div>
+    <div class="desk">
+      <div class="hairline"><div class="fill" style="width:79%"></div></div>
+      <div class="strip">
+        <div class="fill" style="width:84%"></div>
+        <div class="ghost" style="left:84%; width:3%"></div>
+        <div class="ticks"></div>
+        <div class="spark" style="left:84%"></div>
+      </div>
+      <div class="pill"><span class="n s">84%</span> <span class="d">· resets 8:40 PM · fable</span> <span class="n w">79%</span></div>
+    </div>
+    <div class="cap" style="margin-top:14px">state 2 · low: amber recolor of the whole fill, projection surfaces</div>
+    <div class="desk dim">
+      <div class="hairline"><div class="fill" style="width:64%"></div></div>
+      <div class="strip">
+        <div class="fill" style="width:24%; background:var(--amber)"></div>
+        <div class="ghost" style="left:24%; width:6%"></div>
+        <div class="ticks"></div>
+        <div class="spark" style="left:24%"></div>
+      </div>
+      <div class="pill"><span class="n warn">24%</span> <span class="d">· tapped by ~6:10 PM at this pace · resets 8:40 PM</span></div>
+    </div>
+    <div class="cap" style="margin-top:14px">state 3 · tapped: red, digits take over, countdown becomes the content</div>
+    <div class="desk dim">
+      <div class="hairline"><div class="fill" style="width:64%"></div></div>
+      <div class="strip">
+        <div class="fill" style="width:100%; background:rgba(226,90,90,0.28)"></div>
+        <div class="ticks"></div>
+      </div>
+      <div class="pill"><span class="n crit">TAPPED</span> <span class="d">· mana back at</span> <span class="n crit">8:40 PM</span> <span class="d">(1h 12m)</span></div>
+    </div>
+    <div class="tradeoffs">
+      <div class="keeps"><h4>Keeps</h4><ul><li>The ambient MMO fantasy plus the gacha planning readout</li><li>Whole-fill recolor makes state legible from peripheral vision</li><li>Every element earned its place in some game's HUD</li></ul></div>
+      <div class="costs"><h4>Costs</h4><ul><li>Most work: ghost state, projection math, ladder logic</li><li>Projection needs a burn-rate source (client history or ccusage)</li></ul></div>
+    </div>
+    <p class="note"><b>Why recommended:</b> P1 alone is cosmetic, P3 abandons the ambient bar, P4 is a raid frame not a desktop companion. P5 is the exp bar you asked for with the two research findings that matter most folded in: the absolute reset clock (planning) and the ghost layer (what just happened). P2 and P1 are strict subsets of it, so we can ship it in stages: polish, then clock grammar, then ghost.</p>
+  </div>
+
+  <!-- ================= P5 DEEP DIVE ================= -->
+  <div class="prop">
+    <div class="prop-head"><span class="tag rec">P5 · DEEP DIVE</span><h3>Anatomy, pacing segments, and the P4 toggle</h3></div>
+
+    <p class="thesis">Every element labeled. The bar is three independent layers over one data model: the strip (ambient state), the ghost (recent change), the pill (exact numbers). Each can ship separately.</p>
+    <div class="cap">annotated · mid-session, 62% left, burning slightly hot</div>
+    <div class="desk" style="height:130px">
+      <div class="pin" style="left:20%; bottom:52px; --drop:34px"><span class="k">1</span> fill · mana left (62%)</div>
+      <div class="pin" style="left:47%; bottom:80px; --drop:62px"><span class="k">4</span> pace notch · even-burn line (45%)</div>
+      <div class="pin" style="left:63%; bottom:52px; --drop:34px"><span class="k">2</span> ghost · last ~10 min of burn</div>
+      <div class="pin" style="left:78%; bottom:80px; --drop:62px"><span class="k">3</span> spark + <span class="k">5</span> weekly hairline</div>
+      <div class="strip">
+        <div class="fill" style="width:62%"></div>
+        <div class="ghost" style="left:62%; width:8%"></div>
+        <div class="ticks10"></div>
+        <div class="spark" style="left:62%"></div>
+        <div class="notch" style="left:45%"></div>
+      </div>
+      <div class="hairline"><div class="fill" style="width:79%"></div></div>
+      <div class="pill" style="bottom:18px"><span class="k" style="font:600 10px var(--mono); color:var(--indigo-hi)">6</span> <span class="n s">62%</span> <span class="d">· resets 8:40 PM · fable</span> <span class="n w">79%</span></div>
+    </div>
+    <p class="note"><b>1 Fill:</b> budget remaining, drains right to left, whole thing recolors by state (indigo, amber, red). <b>2 Ghost:</b> when a poll shows a drop, the lost width lingers pale and decays over ~60s. A fat ghost means something is eating tokens right now. <b>3 Spark:</b> marks the live edge; its pulse is the only always-on animation. <b>4 Pace notch:</b> the WoW rested-tick idea inverted. It sits where your mana would be if you burned perfectly evenly across the 5h window (100% at reset start, 0% at reset). Fill right of the notch: you are ahead of schedule, relax. Fill left: running hot. This answers "should I worry" with zero text and zero math. <b>5 Weekly hairline:</b> most-binding weekly meter, ambient only. <b>6 Pill:</b> exact numbers, absolute clock, and the projection when a state demands it.</p>
+
+    <div class="cap" style="margin-top:22px">segments · 20 bubbles (WoW default, 5% each, no meaning)</div>
+    <div class="desk" style="height:56px">
+      <div class="strip"><div class="fill" style="width:62%"></div><div class="ticks"></div><div class="spark" style="left:62%"></div></div>
+    </div>
+    <div class="cap" style="margin-top:10px">segments · 10 bubbles = 30 min each at even pace (session rec)</div>
+    <div class="desk" style="height:56px">
+      <div class="strip"><div class="fill" style="width:62%"></div><div class="ticks10"></div><div class="spark" style="left:62%"></div></div>
+    </div>
+    <div class="cap" style="margin-top:10px">segments · weekly promoted to its own 5px bar with 14 bubbles = one per half-day (Andy's idea, toggle/alt view)</div>
+    <div class="desk" style="height:56px">
+      <div class="weekbar-promoted"><div class="fill" style="width:79%"></div><div class="ticks14"></div></div>
+      <div class="strip"><div class="fill" style="width:62%"></div><div class="ticks10"></div><div class="spark" style="left:62%"></div></div>
+    </div>
+    <p class="note"><b>Why tie count to the clock:</b> segments quantized by the reset window turn the bar into a schedule. Session = 5h, so 10 bubbles means "spend a bubble every half hour and you exactly make it". Weekly = 7 days, so 14 bubbles means "a bubble per half-day". 20 would also work visually but the bubbles would mean nothing. On the 2px ambient hairline ticks are invisible, so the 14 bubbles only appear in the promoted view below.</p>
+
+    <p class="note" style="margin-top:18px"><b>Where P4 fits (your toggle instinct):</b> P4 becomes the detail view of the same data, not a rival. Two triggers: manual (tray menu "Detail view", swaps the corner pill for the timer stack) and automatic (the API marks which limit is currently binding via <code style="font-family:var(--mono); font-size:12px">is_active</code>; when a weekly overtakes the session as your real constraint, its bar auto-promotes into view for as long as that holds, BotW conditional-visibility rule). Ambient mode stays one strip + one hairline + one pill.</p>
+
+    <p class="note" style="margin-top:18px"><b>Behavior over one evening (the state machine):</b> 7:00 PM, fresh window: full indigo bar, pill says "100% · resets 12:40 AM". You work; the spark walks left, ghosts flare and fade behind it as agents run. 9:30 PM: fill crosses the pace notch going the wrong way; nothing changes color yet, but you can see you are left of the line. 10:15 PM, 28% left: whole fill recolors amber, pill grows the projection "tapped by ~11:20 PM at this pace". 11:20 PM, 8%: red. Tapped: bar turns to a dim red wash, pill becomes a countdown "mana back at 12:40 AM (1h 04m)". 12:40 AM: bar refills full in one sweep with a brief golden flash (the level-up moment), back to calm indigo. The weekly hairline barely moved all night; on Sunday it is the thing that matters, and that is when it auto-promotes.</p>
+  </div>
+
+  <h2>Open calls for Andy</h2>
+  <div class="digest">
+    <ul>
+      <li><b>Units:</b> percent, bubbles (n/20), or an invented mana pool (n/200)? Research says integers beat percent, but the pool number would be synthetic.</li>
+      <li><b>Reset display:</b> absolute clock ("8:40 PM"), countdown ("3h 53m"), or clock with countdown in parentheses?</li>
+      <li><b>Weekly meters:</b> hairline (current), second row of the pill only, or P4-style mini bars that appear only when a weekly is the binding limit?</li>
+      <li><b>Conditional visibility:</b> should the whole bar hide above some threshold and fade in as mana gets spent?</li>
+    </ul>
+  </div>
+</div>
+</body>
+</html>

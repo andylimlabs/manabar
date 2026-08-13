@@ -1,0 +1,58 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Privacy · ManaBar</title>
+<meta name="description" content="What the ManaBar site and app do and don't collect." />
+<link rel="icon" type="image/png" href="/icon.png" />
+<link rel="canonical" href="https://getmanabar.com/privacy.html" />
+<meta name="robots" content="noindex" />
+<style>
+  :root {
+    --bg: #0e0f13;
+    --ink: #e8e9ee;
+    --dim: #8b8e9c;
+    --hair: rgba(255, 255, 255, 0.09);
+    --teal: #5ecbba;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--ink);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    line-height: 1.6;
+  }
+  .wrap { max-width: 640px; margin: 0 auto; padding: 72px 24px 44px; }
+  h1 { font-size: 28px; margin: 0 0 8px; }
+  h2 { font-size: 17px; margin: 36px 0 8px; }
+  p { color: var(--dim); margin: 0 0 12px; }
+  a, a:visited { color: var(--teal); }
+  .updated { font-size: 13px; }
+  footer { border-top: 1px solid var(--hair); margin-top: 56px; padding-top: 24px; font-size: 13px; color: var(--dim); }
+  footer a { color: var(--dim); }
+</style>
+</head>
+<body>
+  <div class="wrap">
+    <h1>Privacy</h1>
+    <p class="updated">Last updated August 10, 2026</p>
+
+    <h2>The app</h2>
+    <p>ManaBar collects nothing. There is no telemetry, no analytics, no account, and no server of ours. The app reads the sign-in your Claude Code or Codex CLI already has on your machine and sends it only to that provider's own API over TLS to fetch your usage meters. Credentials are never stored, and the local cache holds meter percentages and reset times only.</p>
+    <p>You don't have to take our word for it: the app is open source, and the code that touches your token is deliberately small. See <a href="https://github.com/andylimlabs/manabar/blob/main/SECURITY.md">SECURITY.md</a> for the guarantees and how to verify them.</p>
+
+    <h2>This website</h2>
+    <p>getmanabar.com uses Google Analytics to count visits (pages viewed, referrer, rough geography). We use it to see whether anyone is reading this. No ads, no cross-site tracking of ours, and we never see individual identities.</p>
+    <p>If you block analytics with a browser extension or setting, the site works exactly the same.</p>
+
+    <h2>Questions</h2>
+    <p>Open an issue or discussion at <a href="https://github.com/andylimlabs/manabar">github.com/andylimlabs/manabar</a>.</p>
+
+    <footer>
+      <a href="/">← getmanabar.com</a>
+    </footer>
+  </div>
+</body>
+</html>

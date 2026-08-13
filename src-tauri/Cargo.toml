@@ -1,0 +1,25 @@
+[package]
+name = "manabar"
+version = "0.1.1"
+description = "manabar: an MMO-style mana bar for your agent stamina"
+authors = ["Andy Lim"]
+edition = "2021"
+license = "MIT"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[lib]
+# The `_lib` suffix may seem redundant but it is necessary
+# to make the lib name unique and wouldn't conflict with the bin name.
+# This seems to be only an issue on Windows, see https://github.com/rust-lang/cargo/issues/8519
+name = "manabar_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = ["tray-icon", "macos-private-api"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+

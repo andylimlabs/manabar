@@ -1,0 +1,17 @@
+<svg width="1024" height="1024" viewBox="0 0 1024 1024" xmlns="http://www.w3.org/2000/svg">
+  <!-- manabar: the mana crystal. Faceted teal gem, indigo rim, specular glint.
+       Andy's pick 2026-08-10 (logo-proposals.html #3; monogram runner-up). -->
+  <rect x="64" y="64" width="896" height="896" rx="200" fill="#14151b"/>
+
+  <!-- gem body -->
+  <polygon points="512,178 776,512 512,846 248,512" fill="#5ecbba"/>
+  <!-- facets: light catches the top-right, depth sits bottom-left -->
+  <polygon points="512,178 776,512 512,512" fill="#8fe3d4"/>
+  <polygon points="512,512 512,846 248,512" fill="#3fae9d"/>
+  <!-- rim -->
+  <polygon points="512,178 776,512 512,846 248,512" fill="none" stroke="#98a2ff" stroke-width="36" stroke-linejoin="round"/>
+
+  <!-- specular glint -->
+  <circle cx="430" cy="368" r="26" fill="#ffffff" opacity="0.35"/>
+  <circle cx="466" cy="322" r="12" fill="#ffffff" opacity="0.3"/>
+</svg>
